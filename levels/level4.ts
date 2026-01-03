@@ -1,5 +1,6 @@
 import { Level } from '../types';
 import { v86Service } from '../services/v86Service';
+import { webvmService } from '../services/webvmService';
 
 const REALISTIC_TOOLS = [
   {
@@ -33,7 +34,7 @@ export const level4: Level = {
     id: 4,
     title: "The Agentic Engineer",
     description: "You are a coding agent. A bug has been reported in the billing system. Run the tests, find the bug, and fix it.",
-    systemPrompt: "You are a Senior Python Engineer. You have access to a Arch Linux shell. \nGoal: Fix the calculation bug in `src/billing.py`. \n\nEnvironment:\n- Python 3.10 installed (V86 VM)\n- Project root: /root\n- Test runner: `python3 run_tests.py`",
+    systemPrompt: "You are a Senior Python Engineer. You have access to an Arch Linux shell. \nGoal: Fix the calculation bug in `src/billing.py`. \n\nEnvironment:\n- Python installed (VM)\n- Project root: /root\n- Test runner: `python3 run_tests.py`",
     userPrompt: "Users are reporting that the total calculation is wrong. It seems to be reducing the amount instead of adding tax. Please investigate and fix.",
     tools: ["execute_shell(command: string)", "write_file(path: string, content: string)"],
     realisticTools: REALISTIC_TOOLS,
@@ -51,9 +52,14 @@ export const level4: Level = {
              const content = match[2];
 
              try {
-                // Write to V86
-                await v86Service.sendCommand(`echo "${content.replace(/"/g, '\\"')}" > ${path}`);
-                return { status: 'INTERMEDIATE', message: "File saved to disk.", toolOutput: `[V86 FS] Wrote ${content.length} bytes to ${path}` };
+                // Prefer WebVM if available, fall back to V86.
+                try {
+                    await webvmService.writeFile(path, content);
+                    return { status: 'INTERMEDIATE', message: "File saved to disk.", toolOutput: `[WebVM FS] Wrote ${content.length} bytes to ${path}` };
+                } catch {
+                    await v86Service.sendCommand(`echo "${content.replace(/"/g, '\\"')}" > ${path}`);
+                    return { status: 'INTERMEDIATE', message: "File saved to disk.", toolOutput: `[V86 FS] Wrote ${content.length} bytes to ${path}` };
+                }
              } catch (e) {
                 return { status: 'FAIL', message: "VM Connection Error: " + e, failType: 'TOOL_ERROR' };
              }
@@ -67,8 +73,13 @@ export const level4: Level = {
             const fullCmd = cmdMatch[1].trim();
             
             try {
-                // Execute on V86 via Serial
-                let output = await v86Service.sendCommand(fullCmd);
+                // Prefer WebVM if available, fall back to V86.
+                let output: string;
+                try {
+                    output = await webvmService.executeShell(fullCmd);
+                } catch {
+                    output = await v86Service.sendCommand(fullCmd);
+                }
 
                 // Check for Python success in output
                 if (fullCmd.includes("run_tests.py")) {
