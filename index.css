@@ -1,0 +1,134 @@
+/* Global CRT-ish overlays (used by `components/CRTEffectOverlay.tsx`) */
+
+@keyframes crt-flicker {
+    0% { opacity: 0.35; }
+    5% { opacity: 0.25; }
+    10% { opacity: 0.45; }
+    15% { opacity: 0.30; }
+    20% { opacity: 0.50; }
+    100% { opacity: 0.35; }
+  }
+  
+  .crt-vignette {
+    background: radial-gradient(
+      circle at center,
+      rgba(0, 0, 0, 0) 0%,
+      rgba(0, 0, 0, 0.25) 60%,
+      rgba(0, 0, 0, 0.65) 100%
+    );
+  }
+  
+  .crt-scanlines {
+    background: repeating-linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.03) 0px,
+      rgba(255, 255, 255, 0.03) 1px,
+      rgba(0, 0, 0, 0.02) 2px,
+      rgba(0, 0, 0, 0.02) 4px
+    );
+    opacity: 0.55;
+    mix-blend-mode: overlay;
+  }
+  
+  .crt-flicker {
+    background: rgba(255, 255, 255, 0.03);
+    animation: crt-flicker 7s infinite;
+    mix-blend-mode: overlay;
+  }
+  
+  .crt-title-glow {
+    background:
+      radial-gradient(circle at 50% 40%, rgba(34, 197, 94, 0.20), rgba(0, 0, 0, 0) 60%),
+      radial-gradient(circle at 50% 60%, rgba(255, 255, 255, 0.06), rgba(0, 0, 0, 0) 55%);
+    filter: blur(18px);
+  }
+  
+  /* DOM-level curvature approximation (keeps interactivity; not a true pixel warp). */
+  .crt-curvature {
+    position: relative;
+    /* User-facing slider is 0..1; scale it up so max is very noticeable. */
+    --crt-curv: calc(var(--crt-curvature, 0) * 10);
+    transform:
+      perspective(1400px)
+      /* Avoid compound X+Y tilt which over-emphasizes one corner (top-left). */
+      rotateX(calc(var(--crt-curv) * 2.4deg))
+      rotateY(0deg)
+      scale(calc(1 - (var(--crt-curv) * 0.02)));
+    transform-origin: center;
+    will-change: transform;
+    border-radius: calc(var(--crt-curv) * 18px);
+  }
+  
+  .crt-curvature::before {
+    /* Disabled: this “glass gradient” reads as a weird wash on large containers. */
+    content: none;
+  }
+  
+  /* “Feels applied” approximation: CSS postprocess on the actual DOM content.
+     This is not a true pixel warp, but it sells the effect (slight blur + chromatic fringe). */
+  .crt-content-postprocess {
+    --crt-aberr: 0px;
+    --crt-blur: 0px;
+    --crt-contrast: 1;
+    --crt-sat: 1;
+    --crt-bright: 1;
+  
+    filter:
+      drop-shadow(calc(var(--crt-aberr) * 1) 0 0 rgba(255, 60, 60, 0.18))
+      drop-shadow(calc(var(--crt-aberr) * -1) 0 0 rgba(60, 200, 255, 0.14))
+      blur(var(--crt-blur))
+      contrast(var(--crt-contrast))
+      saturate(var(--crt-sat))
+      brightness(var(--crt-bright));
+  }
+  
+  /* Shell wrapper that adds “applied to content” overlays and a global curvature/warp transform. */
+  .crt-content-shell {
+    position: relative;
+    overflow: hidden;
+    transform-origin: center;
+  
+    /* 0..1 */
+    --crt-warp: 0;
+    --crt-vig: 0.4;
+    --crt-scan: 0.25;
+  
+    /* Curvature-ish transform (not a true barrel warp, but it sells “screen glass”). */
+    transform:
+      perspective(1400px)
+      rotateX(calc(var(--crt-warp) * 1.6deg))
+      rotateY(calc(var(--crt-warp) * -1.2deg))
+      scale(calc(1 - (var(--crt-warp) * 0.018)));
+  
+    border-radius: calc(var(--crt-warp) * 18px);
+  }
+  
+  
+  .crt-content-shell::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.03) 0px,
+      rgba(255, 255, 255, 0.03) 1px,
+      rgba(0, 0, 0, 0.02) 2px,
+      rgba(0, 0, 0, 0.02) 4px
+    );
+    opacity: clamp(0, var(--crt-scan), 1);
+    /* Screen keeps scanlines as a light-only effect; overlay can darken heavily on black UIs. */
+    mix-blend-mode: screen;
+    z-index: 3;
+  }
+  
+  /* Prevent page-level scrollbars; scrolling should be handled by inner panels. */
+  html,
+  body,
+  #root {
+    overflow-x: hidden;
+    overflow-y: hidden;
+  }
+  
+  
+  
