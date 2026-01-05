@@ -9,6 +9,7 @@ import { Typewriter } from './components/Typewriter';
 import { CRTEffectOverlay } from './components/CRTEffectOverlay';
 import { CRTEffectOverlayWebGL } from './components/CRTEffectOverlayWebGL.tsx';
 import { TitleCardOverlay } from './components/TitleCardOverlay';
+import { OscilloscopeTitleCardWebGL } from './components/OscilloscopeTitleCardWebGL';
 import { CRTDisplacementMapDefs } from './components/CRTDisplacementMapDefs';
 import { Play, RotateCcw } from 'lucide-react';
 
@@ -25,6 +26,7 @@ export default function App() {
   const [crtMode, setCrtMode] = useState<'webgl' | 'css'>('webgl');
   const [crtEnabled, setCrtEnabled] = useState(true);
   const [crtInvalidateNonce, setCrtInvalidateNonce] = useState(0);
+  const [typewriterSpeed, setTypewriterSpeed] = useState<1 | 2 | 4 | 8 | 16>(1);
   const [crtWebgl, setCrtWebgl] = useState({
     intensity: 0.24,
     pattern: 'monitor' as const,
@@ -199,14 +201,15 @@ export default function App() {
       if (gameState === GameState.PLAYING) {
         return (
           <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
-            <SimulationView 
+            <SimulationView
                 key={`${currentLevelIndex}-${isRealisticMode}`} // Force re-render on level OR mode change
-                level={LEVELS[currentLevelIndex]} 
+                level={LEVELS[currentLevelIndex]}
                 onSuccess={handleLevelSuccess}
-                isRealisticMode={isRealisticMode} 
+                isRealisticMode={isRealisticMode}
                 setIsRealisticMode={setIsRealisticMode}
                 crtUiCurvature={crtMode === 'webgl' ? crtWebgl.curvature : 0}
                 crtUiWarp2d={crtMode === 'webgl' ? crtWebgl.uiWarp2d : 0}
+                typewriterSpeed={typewriterSpeed}
             />
           </div>
         );
@@ -219,14 +222,15 @@ export default function App() {
       if (gameState === GameState.PLAYING_ADVANCED) {
         return (
             <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
-                <SimulationView 
+                <SimulationView
                     key={`${currentLevelIndex}-${isRealisticMode}`} // Force re-render on level OR mode change
-                    level={ADVANCED_LEVELS[currentLevelIndex]} 
+                    level={ADVANCED_LEVELS[currentLevelIndex]}
                     onSuccess={handleLevelSuccess}
-                    isRealisticMode={isRealisticMode} 
+                    isRealisticMode={isRealisticMode}
                     setIsRealisticMode={setIsRealisticMode}
                     crtUiCurvature={crtMode === 'webgl' ? crtWebgl.curvature : 0}
                     crtUiWarp2d={crtMode === 'webgl' ? crtWebgl.uiWarp2d : 0}
+                    typewriterSpeed={typewriterSpeed}
                 />
             </div>
         );
@@ -330,6 +334,8 @@ export default function App() {
           setGameState={setGameState}
           crtWebgl={crtWebgl}
           setCrtWebgl={setCrtWebgl}
+          typewriterSpeed={typewriterSpeed}
+          setTypewriterSpeed={setTypewriterSpeed}
         />
         <div
           className={
@@ -356,18 +362,31 @@ export default function App() {
               : undefined
           }
         >
-          {renderContent()}
+          {/* Don't render content while a title card is showing - prevents level 1 animation from starting before the intro title card finishes */}
+          {!titleCard && renderContent()}
         </div>
         {titleCard && (
-          <TitleCardOverlay
-            text={titleCard.text}
-            subtext={titleCard.subtext}
-            onDone={() => {
-              if (!introComplete) setIntroComplete(true);
-              setCrtInvalidateNonce((n) => n + 1);
-              setTitleCard(null);
-            }}
-          />
+          titleCard.text === 'You Are An Agent' ? (
+            <OscilloscopeTitleCardWebGL
+              onComplete={() => {
+                if (!introComplete) setIntroComplete(true);
+                setCrtInvalidateNonce((n) => n + 1);
+                setTitleCard(null);
+              }}
+              skipDelay={2000}
+            />
+          ) : (
+            <TitleCardOverlay
+              text={titleCard.text}
+              subtext={titleCard.subtext}
+              speedMultiplier={typewriterSpeed}
+              onDone={() => {
+                if (!introComplete) setIntroComplete(true);
+                setCrtInvalidateNonce((n) => n + 1);
+                setTitleCard(null);
+              }}
+            />
+          )
         )}
     </>
   );

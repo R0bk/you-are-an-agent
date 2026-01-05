@@ -1,5 +1,4 @@
 import { Level } from '../types';
-import { v86Service } from '../services/v86Service';
 import { webvmService } from '../services/webvmService';
 
 const REALISTIC_TOOLS = [
@@ -52,14 +51,8 @@ export const level4: Level = {
              const content = match[2];
 
              try {
-                // Prefer WebVM if available, fall back to V86.
-                try {
-                    await webvmService.writeFile(path, content);
-                    return { status: 'INTERMEDIATE', message: "File saved to disk.", toolOutput: `[WebVM FS] Wrote ${content.length} bytes to ${path}` };
-                } catch {
-                    await v86Service.sendCommand(`echo "${content.replace(/"/g, '\\"')}" > ${path}`);
-                    return { status: 'INTERMEDIATE', message: "File saved to disk.", toolOutput: `[V86 FS] Wrote ${content.length} bytes to ${path}` };
-                }
+                await webvmService.writeFile(path, content);
+                return { status: 'INTERMEDIATE', message: "File saved to disk.", toolOutput: `[WebVM FS] Wrote ${content.length} bytes to ${path}` };
              } catch (e) {
                 return { status: 'FAIL', message: "VM Connection Error: " + e, failType: 'TOOL_ERROR' };
              }
@@ -73,13 +66,7 @@ export const level4: Level = {
             const fullCmd = cmdMatch[1].trim();
             
             try {
-                // Prefer WebVM if available, fall back to V86.
-                let output: string;
-                try {
-                    output = await webvmService.executeShell(fullCmd);
-                } catch {
-                    output = await v86Service.sendCommand(fullCmd);
-                }
+                const output = await webvmService.executeShell(fullCmd);
 
                 // Check for Python success in output
                 if (fullCmd.includes("run_tests.py")) {

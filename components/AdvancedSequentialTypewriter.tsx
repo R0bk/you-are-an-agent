@@ -79,6 +79,8 @@ interface AdvancedSequentialTypewriterProps {
    * - bare: does not impose text sizing/leading; use parent/classes to control layout
    */
   preset?: 'chat' | 'bare';
+  /** Speed multiplier - delays are divided by this value (1x, 2x, 4x, 8x, 16x) */
+  speedMultiplier?: number;
 }
 
 /**
@@ -96,6 +98,7 @@ export const AdvancedSequentialTypewriter: React.FC<AdvancedSequentialTypewriter
   showCursor = true,
   renderAs = 'div',
   preset = 'chat',
+  speedMultiplier = 1,
 }) => {
   const onCompleteRef = useRef(onComplete);
   useEffect(() => {
@@ -149,13 +152,14 @@ export const AdvancedSequentialTypewriter: React.FC<AdvancedSequentialTypewriter
 
       const nextMeta = charClassByIndex[next];
       const prevMeta = charClassByIndex[next - 1];
-      const delay = computeDelayMs(
+      const baseDelay = computeDelayMs(
         nextMeta?.ch ?? '',
         prevMeta?.ch,
         nextMeta?.className,
         prevMeta?.className,
         delayProfile
       );
+      const delay = Math.max(1, Math.floor(baseDelay / speedMultiplier));
 
       timeoutId = window.setTimeout(() => tick(next), delay);
     };
@@ -167,7 +171,7 @@ export const AdvancedSequentialTypewriter: React.FC<AdvancedSequentialTypewriter
       cancelled = true;
       if (timeoutId) window.clearTimeout(timeoutId);
     };
-  }, [isAnimating, totalLength, charClassByIndex, delayProfile]);
+  }, [isAnimating, totalLength, charClassByIndex, delayProfile, speedMultiplier]);
 
   // Render logic: slice per segment based on currentIndex (like the old version)
   let charTracker = 0;

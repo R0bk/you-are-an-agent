@@ -10,8 +10,8 @@ import { TerminalPromptBoxInput } from './TerminalPromptBoxInput';
 import { AdvancedSequentialTypewriter } from './AdvancedSequentialTypewriter';
 import { useTerminalWheelScrollStep } from './useTerminalWheelScrollStep';
 import { LevelCompleteOverlay } from './LevelCompleteOverlay';
-// Import the singleton from the new service file
-import { v86Service } from '../services/v86Service'; 
+import { webvmService } from '../services/webvmService';
+import { WebVMFrame } from './WebVMFrame';
 
 interface SimulationViewProps {
   level: Level;
@@ -21,6 +21,7 @@ interface SimulationViewProps {
   setIsRealisticMode?: React.Dispatch<React.SetStateAction<boolean>>;
   crtUiCurvature?: number;
   crtUiWarp2d?: number;
+  typewriterSpeed?: 1 | 2 | 4 | 8 | 16;
 }
 
 export const SimulationView: React.FC<SimulationViewProps> = ({
@@ -31,6 +32,7 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
   setIsRealisticMode,
   crtUiCurvature = 0,
   crtUiWarp2d = 0,
+  typewriterSpeed = 1,
 }) => {
   const [input, setInput] = useState('');
   const [status, setStatus] = useState<'IDLE' | 'THINKING' | 'ERROR' | 'SUCCESS'>('IDLE');
@@ -39,6 +41,7 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
   const [history, setHistory] = useState<Message[]>([]);
   const [showSuccessOverlay, setShowSuccessOverlay] = useState(false);
   const [isBooting, setIsBooting] = useState(false);
+  const [useWebVM, setUseWebVM] = useState(false);
   const [isLevelIntroAnimating, setIsLevelIntroAnimating] = useState(true);
   const [introCanvasText, setIntroCanvasText] = useState<string | undefined>(undefined);
   
@@ -54,16 +57,19 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
   useEffect(() => {
     // Check if this level needs a boot sequence
     const initLevel = async () => {
-        if (level.id === 4) { // Level 4 is the V86 Arch Linux one
+        if (level.id === 4) { // Level 4 uses WebVM
             setIsBooting(true);
+            setUseWebVM(true);
             try {
-                // Initialize V86 asynchronously while boot animation plays
-                await v86Service.boot(); 
+                // Give React a tick to mount the iframe before booting.
+                await new Promise(r => setTimeout(r, 0));
+                await webvmService.boot();
             } catch (e) {
-                console.error("V86 Boot Failed", e);
+                console.error("WebVM boot failed", e);
             }
         } else {
             setIsBooting(false);
+            setUseWebVM(false);
         }
 
         setInput('');
@@ -123,11 +129,8 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
   // Handle Boot Completion
   const handleBootComplete = () => {
       setIsBooting(false);
-      // Setup environment files inside V86 after boot
-      if (level.id === 4) {
-          v86Service.setupEnvironment().then(() => {
-              if (inputRef.current) inputRef.current.focus();
-          });
+      if (level.id === 4 && inputRef.current) {
+          inputRef.current.focus();
       }
   };
 
@@ -334,6 +337,7 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
                     preset="bare"
                     segments={[{ text: 'EASY' }]}
                     isAnimating={true}
+                    speedMultiplier={typewriterSpeed}
                     delayProfile={{
                       baseDelayMs: 12,
                       whitespaceDelayMs: 0,
@@ -392,6 +396,7 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
                     preset="bare"
                     segments={[{ text: 'REALISTIC' }]}
                     isAnimating={true}
+                    speedMultiplier={typewriterSpeed}
                     delayProfile={{
                       baseDelayMs: 12,
                       whitespaceDelayMs: 0,
@@ -436,6 +441,7 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
                      systemContent={history.find((m) => m.role === 'system')?.content ?? ''}
                      developerContent={history.find((m) => m.role === 'developer')?.content}
                      userContent={history.find((m) => m.role === 'user')?.content ?? ''}
+                     speedMultiplier={typewriterSpeed}
                      onComplete={(finalCanvasText) => {
                        setIntroCanvasText(finalCanvasText);
                        setIsLevelIntroAnimating(false);
@@ -457,14 +463,15 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
                           </div>
                       )}
                       {history.map((msg, idx) => (
-                        <ChatMessage 
-                          key={idx} 
-                          msg={msg} 
-                          idx={idx} 
+                        <ChatMessage
+                          key={idx}
+                          msg={msg}
+                          idx={idx}
                           activeImageUrl={activeImageUrl}
                           isFirstUserMessage={msg.role === 'user' && idx === history.findIndex((m) => m.role === 'user')}
                           isVisible={idx <= animatingIndex}
                           isAnimating={idx === animatingIndex}
+                          speedMultiplier={typewriterSpeed}
                           onAnimationComplete={() => setAnimatingIndex(current => {
                               // Prevent race conditions/double-firing where it might skip an index
                               if (current === idx) return idx + 1;
@@ -517,6 +524,17 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
                     </div>
                  </Terminal>
             </div>
+        )}
+
+        {/* RIGHT PANE: WEBVM (Level 4) */}
+        {level.id === 4 && useWebVM && (
+          <div className="md:w-2/3 h-full flex flex-col">
+            <Terminal title="WEBVM // Linux + Python" className="flex-1 h-full bg-zinc-900 border-l border-zinc-800">
+              <div className="w-full h-full relative bg-black">
+                <WebVMFrame className="absolute inset-0 w-full h-full" />
+              </div>
+            </Terminal>
+          </div>
         )}
 
         </div>

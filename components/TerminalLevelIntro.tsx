@@ -28,6 +28,7 @@ interface TerminalLevelIntroProps {
   developerContent?: string;
   userContent: string;
   onComplete: (finalCanvasText: string) => void;
+  speedMultiplier?: number;
 }
 
 function computeCanvasDelayMs(ch: string, kind: 'corner' | 'edge') {
@@ -46,6 +47,7 @@ export const TerminalLevelIntro: React.FC<TerminalLevelIntroProps> = ({
   developerContent,
   userContent,
   onComplete,
+  speedMultiplier = 1,
 }) => {
   const [phase, setPhase] = useState<'TYPING' | 'CANVAS' | 'DONE'>('TYPING');
   const onCompleteRef = useRef(onComplete);
@@ -167,7 +169,8 @@ export const TerminalLevelIntro: React.FC<TerminalLevelIntroProps> = ({
     }
 
     const step = canvasOps[canvasStep];
-    const delay = computeCanvasDelayMs(step.ch, step.kind);
+    const baseDelay = computeCanvasDelayMs(step.ch, step.kind);
+    const delay = Math.max(1, Math.floor(baseDelay / speedMultiplier));
 
     const t = window.setTimeout(() => {
       setCanvas((prev) => setCanvasChar(prev, step.x, step.y, step.ch));
@@ -175,7 +178,7 @@ export const TerminalLevelIntro: React.FC<TerminalLevelIntroProps> = ({
     }, delay);
 
     return () => window.clearTimeout(t);
-  }, [phase, canvasStep, canvasOps]);
+  }, [phase, canvasStep, canvasOps, speedMultiplier]);
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -184,6 +187,7 @@ export const TerminalLevelIntro: React.FC<TerminalLevelIntroProps> = ({
           segments={introSegments}
           isAnimating={phase === 'TYPING'}
           onComplete={() => setPhase('CANVAS')}
+          speedMultiplier={speedMultiplier}
           delayProfile={{
             baseDelayMs: 10,
             whitespaceDelayMs: 35,

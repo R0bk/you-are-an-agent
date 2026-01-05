@@ -14,6 +14,8 @@ type DevToolsProps = {
   // This is a large state object; keep it flexible to avoid duplicating the full type here.
   crtWebgl: any;
   setCrtWebgl: React.Dispatch<React.SetStateAction<any>>;
+  typewriterSpeed: 1 | 2 | 4 | 8 | 16;
+  setTypewriterSpeed: React.Dispatch<React.SetStateAction<1 | 2 | 4 | 8 | 16>>;
 };
 
 export const DevTools: React.FC<DevToolsProps> = ({
@@ -27,6 +29,8 @@ export const DevTools: React.FC<DevToolsProps> = ({
   setGameState,
   crtWebgl,
   setCrtWebgl,
+  typewriterSpeed,
+  setTypewriterSpeed,
 }) => {
   const [open, setOpen] = React.useState(false);
   const menuRef = React.useRef<HTMLDivElement | null>(null);
@@ -118,6 +122,24 @@ export const DevTools: React.FC<DevToolsProps> = ({
                 >
                   Global CRT ({crtEnabled ? 'ON' : 'OFF'})
                 </button>
+                <div className="px-2 py-2 rounded bg-black/30 border border-zinc-800">
+                  <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2">Typewriter Speed</div>
+                  <div className="flex gap-1">
+                    {([1, 2, 4, 8, 16] as const).map((speed) => (
+                      <button
+                        key={speed}
+                        onClick={() => setTypewriterSpeed(speed)}
+                        className={`flex-1 px-2 py-1 text-xs font-mono rounded transition-colors ${
+                          typewriterSpeed === speed
+                            ? 'bg-terminal-green text-black font-bold'
+                            : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white'
+                        }`}
+                      >
+                        {speed}x
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 {crtMode === 'webgl' && (
                   <div className="px-2 py-2 rounded bg-black/30 border border-zinc-800 space-y-2">
                     <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500">CRT (WebGL) Settings</div>

@@ -23,16 +23,18 @@ interface ChatMessageProps {
   isVisible: boolean;
   isAnimating: boolean;
   onAnimationComplete: () => void;
+  speedMultiplier?: number;
 }
 
-export const ChatMessage: React.FC<ChatMessageProps> = ({ 
-    msg, 
-    idx, 
+export const ChatMessage: React.FC<ChatMessageProps> = ({
+    msg,
+    idx,
     activeImageUrl,
     isFirstUserMessage,
     isVisible,
     isAnimating,
-    onAnimationComplete
+    onAnimationComplete,
+    speedMultiplier = 1,
 }) => {
   
   if (!isVisible) return null;
@@ -131,9 +133,10 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
           segments={segments}
           isAnimating={isAnimating}
           onComplete={onAnimationComplete}
+          speedMultiplier={speedMultiplier}
           delayProfile={{
             baseDelayMs,
-            // Make word breaks + punctuation feel more “terminal-y”
+            // Make word breaks + punctuation feel more "terminal-y"
             whitespaceDelayMs: 35,
             wordGapDelayMs: 55,
             punctuationDelayMs: 95,

@@ -9,6 +9,8 @@ interface TitleCardOverlayProps {
    * How long to keep the card visible after typing completes (before fade out).
    */
   holdMs?: number;
+  /** Speed multiplier for typewriter animation (1x, 2x, 4x, 8x, 16x) */
+  speedMultiplier?: number;
 }
 
 export const TitleCardOverlay: React.FC<TitleCardOverlayProps> = ({
@@ -17,6 +19,7 @@ export const TitleCardOverlay: React.FC<TitleCardOverlayProps> = ({
   onDone,
   // Default increased by +500ms per request (gives the viewer a beat before fading to the level).
   holdMs = 1150,
+  speedMultiplier = 1,
 }) => {
   const [phase, setPhase] = useState<'typing_title' | 'typing_sub' | 'hold' | 'fade'>('typing_title');
   const holdTimerRef = useRef<number | null>(null);
@@ -88,6 +91,7 @@ export const TitleCardOverlay: React.FC<TitleCardOverlayProps> = ({
             showCursor={false}
             segments={titleSegments}
             isAnimating={phase === 'typing_title'}
+            speedMultiplier={speedMultiplier}
             onComplete={() => {
               if (subtext && subtext.trim().length > 0) setPhase('typing_sub');
               else {
@@ -118,6 +122,7 @@ export const TitleCardOverlay: React.FC<TitleCardOverlayProps> = ({
               showCursor={false}
               segments={subSegments}
               isAnimating={phase === 'typing_sub'}
+              speedMultiplier={speedMultiplier}
               onComplete={() => {
                 setPhase('hold');
               }}
