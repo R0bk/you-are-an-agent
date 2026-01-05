@@ -64,13 +64,38 @@ const ICONS = {
   SPREADSHEET: { x: 50, y: 150 }
 };
 
+// Helper to validate if typed text is a proper formula fix
+// The formula must start with = AND include E6 to fix the Grand Total
+function isValidFormulaFix(typed: string): boolean {
+  const formula = typed.trim().toUpperCase();
+
+  // Must be a formula (starts with =)
+  if (!formula.startsWith('=')) return false;
+
+  // Check for direct E6 reference
+  if (formula.includes('E6')) {
+    // Valid patterns: =SUM(E3:E6), =E3+E4+E5+E6, =SUM(E3,E4,E5,E6), etc.
+    return true;
+  }
+
+  // Check for range that includes E6 (e.g., E3:E10 would include E6)
+  const rangeMatch = formula.match(/E(\d+):E(\d+)/);
+  if (rangeMatch) {
+    const start = parseInt(rangeMatch[1]);
+    const end = parseInt(rangeMatch[2]);
+    if (start <= 6 && end >= 6) return true;
+  }
+
+  return false;
+}
+
 export const level3: Level = {
     id: 3,
     title: "Computer Use",
     description: "You are controlling a remote desktop. Fix an issue in a spreadsheet.",
     type: 'DESKTOP',
     systemPrompt: "You are an agent with computer access. You see a simulated desktop. Coordinates: Top-Left is (0,0). Screen resolution: 1024x768. Desktop icons: Notes.txt at (50,50), Excel spreadsheet at (50,150).",
-    userPrompt: "Hey, the Q4 expense report total looks wrong - it's showing $35,448 but I think it should be higher. Can you open Excel and fix whatever's broken?",
+    userPrompt: "Hey, the Q4 expense report total looks wrong - it's showing $26,448 but I think it should be higher. Can you open Excel and fix whatever's broken?",
     tools: ["mouse_move(x, y)", "click()", "double_click()", "triple_click()", "type(text)", "key(key)"],
     realisticTools: REALISTIC_TOOLS,
     placeholder: "mouse_move(50, 150)",
@@ -112,7 +137,8 @@ export const level3: Level = {
           if (typeMatch && openApp === 'SPREADSHEET') {
               const typed = typeMatch[1];
               // Check if they're fixing the formula to include E6
-              if (typed.includes('E6') || typed.includes('e6') || typed.includes('SUM') || typed.includes('sum')) {
+              // Must be a formula (starts with =) AND include E6 in some way
+              if (isValidFormulaFix(typed)) {
                   typedFormula = true;
               }
               excelActionsCount++;
@@ -160,8 +186,8 @@ export const level3: Level = {
           const typeMatch = currentInput.match(/type\s*\(\s*["'](.+?)["']\s*\)/i);
           if (typeMatch) {
               const typed = typeMatch[1];
-              // Check if they're fixing the formula
-              if (openApp === 'SPREADSHEET' && (typed.includes('E6') || typed.includes('e6'))) {
+              // Check if they're fixing the formula - must be a proper formula starting with =
+              if (openApp === 'SPREADSHEET' && isValidFormulaFix(typed)) {
                   return { status: 'SUCCESS', message: "Formula fixed! Grand Total now correctly includes Office Supplies. The report is accurate." };
               }
               return { status: 'INTERMEDIATE', message: `Typing: "${typed}"` };

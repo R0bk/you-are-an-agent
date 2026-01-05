@@ -18,6 +18,7 @@ export const DesktopEnvironment: React.FC<DesktopEnvironmentProps> = ({ history 
   const desktopRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
   const lastProcessedActionRef = useRef<number>(0);
+  const lastClickedElementRef = useRef<Element | null>(null);
 
   // Resize observer to handle scaling 1024x768 to fit parent
   useEffect(() => {
@@ -108,9 +109,23 @@ export const DesktopEnvironment: React.FC<DesktopEnvironmentProps> = ({ history 
 
       console.log(`[DesktopEnv] ${eventType} at (${x}, ${y}) -> actual (${actualX.toFixed(0)}, ${actualY.toFixed(0)}) -> offset (${canvasOffsetX.toFixed(0)}, ${canvasOffsetY.toFixed(0)}) -> element:`, element);
 
-      // Focus if it's an input
+      // Store the clicked element for later type/key events
+      lastClickedElementRef.current = element;
+
+      // Focus if it's an input, or find an input inside the clicked element
+      // Also select all text to make it easy to replace
       if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
         element.focus();
+        element.select(); // Select all text
+        lastClickedElementRef.current = element;
+      } else {
+        // Check if there's an input/textarea inside the clicked element
+        const inputInside = element.querySelector('input, textarea') as HTMLInputElement | HTMLTextAreaElement | null;
+        if (inputInside) {
+          inputInside.focus();
+          inputInside.select(); // Select all text
+          lastClickedElementRef.current = inputInside;
+        }
       }
 
       const eventProps = {
@@ -158,86 +173,148 @@ export const DesktopEnvironment: React.FC<DesktopEnvironmentProps> = ({ history 
   }, [scale]);
 
   const dispatchTypeEvent = useCallback((text: string) => {
-    const activeElement = document.activeElement || document.body;
-    console.log(`[DesktopEnv] type("${text}") -> activeElement:`, activeElement);
+    // Use the last clicked element, or fall back to active element
+    const targetElement = lastClickedElementRef.current || document.activeElement || document.body;
+    console.log(`[DesktopEnv] type("${text}") -> target:`, targetElement);
 
-    if (activeElement instanceof HTMLInputElement || activeElement instanceof HTMLTextAreaElement) {
-      // For input elements, set value directly and dispatch input event
-      const start = activeElement.selectionStart || 0;
-      const end = activeElement.selectionEnd || 0;
-      const currentValue = activeElement.value;
-      activeElement.value = currentValue.slice(0, start) + text + currentValue.slice(end);
-      activeElement.selectionStart = activeElement.selectionEnd = start + text.length;
-      activeElement.dispatchEvent(new Event('input', { bubbles: true }));
-    } else {
-      // For canvas-based apps (like Univer), find the hidden contenteditable input
-      // Univer creates a hidden contenteditable div with id "__editor_{unitId}"
-      const univerEditor = document.querySelector('[contenteditable="true"][data-u-comp="editor"]') as HTMLElement;
+    // Check if it's a standard input/textarea
+    if (targetElement instanceof HTMLInputElement || targetElement instanceof HTMLTextAreaElement) {
+      targetElement.focus();
+      const start = targetElement.selectionStart || 0;
+      const end = targetElement.selectionEnd || 0;
+      const currentValue = targetElement.value;
+      targetElement.value = currentValue.slice(0, start) + text + currentValue.slice(end);
+      targetElement.selectionStart = targetElement.selectionEnd = start + text.length;
+      targetElement.dispatchEvent(new Event('input', { bubbles: true }));
+      return;
+    }
 
-      if (univerEditor) {
-        console.log(`[DesktopEnv] Found Univer editor:`, univerEditor);
-        univerEditor.focus();
+    // Check if we have a focused input (user might have clicked on spreadsheet but a textbox has focus)
+    const focusedInput = document.activeElement;
+    if (focusedInput instanceof HTMLInputElement || focusedInput instanceof HTMLTextAreaElement) {
+      const start = focusedInput.selectionStart || 0;
+      const end = focusedInput.selectionEnd || 0;
+      const currentValue = focusedInput.value;
+      focusedInput.value = currentValue.slice(0, start) + text + currentValue.slice(end);
+      focusedInput.selectionStart = focusedInput.selectionEnd = start + text.length;
+      focusedInput.dispatchEvent(new Event('input', { bubbles: true }));
+      return;
+    }
 
-        // Type each character by updating content and firing input event
-        for (const char of text) {
-          // Append character to the contenteditable
-          univerEditor.textContent = (univerEditor.textContent || '') + char;
+    // For canvas-based apps (like Univer), use execCommand on the contenteditable
+    const univerEditor = document.querySelector('[contenteditable="true"][data-u-comp="editor"]') as HTMLElement;
+    if (univerEditor) {
+      console.log(`[DesktopEnv] Found Univer editor, using execCommand:`, univerEditor);
+      univerEditor.focus();
+      // execCommand insertText is deprecated but works well for contenteditable
+      document.execCommand('insertText', false, text);
+      return;
+    }
 
-          // Dispatch input event (this is what Univer listens for)
-          const inputEvent = new InputEvent('input', {
-            bubbles: true,
-            cancelable: true,
-            inputType: 'insertText',
-            data: char,
-          });
-          univerEditor.dispatchEvent(inputEvent);
-        }
-      } else {
-        // Fallback: dispatch keyboard events to active element
-        console.log(`[DesktopEnv] No Univer editor found, using keyboard events`);
-        for (const char of text) {
-          const keydownEvent = new KeyboardEvent('keydown', {
-            key: char,
-            code: `Key${char.toUpperCase()}`,
-            bubbles: true,
-            cancelable: true,
-          });
-          activeElement.dispatchEvent(keydownEvent);
-        }
-      }
+    // Final fallback: dispatch keyboard events to window (for canvas apps that listen globally)
+    console.log(`[DesktopEnv] Fallback: dispatching keyboard events to window`);
+    for (const char of text) {
+      const keydownEvent = new KeyboardEvent('keydown', {
+        key: char,
+        code: char.length === 1 ? `Key${char.toUpperCase()}` : char,
+        keyCode: char.charCodeAt(0),
+        which: char.charCodeAt(0),
+        bubbles: true,
+        cancelable: true,
+      });
+      window.dispatchEvent(keydownEvent);
+
+      const keypressEvent = new KeyboardEvent('keypress', {
+        key: char,
+        charCode: char.charCodeAt(0),
+        keyCode: char.charCodeAt(0),
+        which: char.charCodeAt(0),
+        bubbles: true,
+        cancelable: true,
+      });
+      window.dispatchEvent(keypressEvent);
+
+      const keyupEvent = new KeyboardEvent('keyup', {
+        key: char,
+        code: char.length === 1 ? `Key${char.toUpperCase()}` : char,
+        keyCode: char.charCodeAt(0),
+        which: char.charCodeAt(0),
+        bubbles: true,
+        cancelable: true,
+      });
+      window.dispatchEvent(keyupEvent);
     }
   }, []);
 
   const dispatchKeyEvent = useCallback((key: string) => {
-    // For Univer, try to find and use the editor element
-    const univerEditor = document.querySelector('[contenteditable="true"][data-u-comp="editor"]') as HTMLElement;
-    const targetElement = univerEditor || document.activeElement || document.body;
-
-    console.log(`[DesktopEnv] key("${key}") -> target:`, targetElement);
+    console.log(`[DesktopEnv] key("${key}")`);
 
     // Map key names to keyCodes
     const keyCodeMap: Record<string, number> = {
       'Enter': 13, 'Tab': 9, 'Escape': 27, 'Backspace': 8, 'Delete': 46,
       'ArrowUp': 38, 'ArrowDown': 40, 'ArrowLeft': 37, 'ArrowRight': 39,
+      'F1': 112, 'F2': 113, 'F3': 114, 'F4': 115, 'F5': 116, 'F6': 117,
+      'F7': 118, 'F8': 119, 'F9': 120, 'F10': 121, 'F11': 122, 'F12': 123,
     };
-    const keyCode = keyCodeMap[key] || 0;
+    const keyCode = keyCodeMap[key] || key.charCodeAt(0);
     const code = keyCodeMap[key] ? key : `Key${key.toUpperCase()}`;
 
-    // Handle Backspace specially for contenteditable (Univer)
-    if (key === 'Backspace' && univerEditor) {
-      const content = univerEditor.textContent || '';
-      if (content.length > 0) {
-        univerEditor.textContent = content.slice(0, -1);
-        const inputEvent = new InputEvent('input', {
-          bubbles: true,
-          cancelable: true,
-          inputType: 'deleteContentBackward',
-          data: null,
+    // First, check if there's a focused input element that should receive the key
+    // Use lastClickedElementRef first, then fall back to document.activeElement
+    const targetInput = (lastClickedElementRef.current instanceof HTMLInputElement || lastClickedElementRef.current instanceof HTMLTextAreaElement)
+      ? lastClickedElementRef.current
+      : (document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLTextAreaElement)
+        ? document.activeElement
+        : null;
+
+    if (targetInput) {
+      // Handle Enter on input - might trigger form submit or cell navigation
+      if (key === 'Enter') {
+        targetInput.focus();
+        const keydownEvent = new KeyboardEvent('keydown', {
+          key, code, keyCode, which: keyCode, bubbles: true, cancelable: true,
         });
-        univerEditor.dispatchEvent(inputEvent);
+        targetInput.dispatchEvent(keydownEvent);
+
+        // Also check for form submission
+        const form = targetInput.closest('form');
+        if (form) {
+          form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        }
+        return;
       }
+
+      // Handle Backspace on input
+      if (key === 'Backspace') {
+        targetInput.focus();
+        const start = targetInput.selectionStart ?? targetInput.value.length;
+        const end = targetInput.selectionEnd ?? targetInput.value.length;
+        if (start > 0 || start !== end) {
+          const currentValue = targetInput.value;
+          if (start === end) {
+            targetInput.value = currentValue.slice(0, start - 1) + currentValue.slice(end);
+            targetInput.selectionStart = targetInput.selectionEnd = start - 1;
+          } else {
+            targetInput.value = currentValue.slice(0, start) + currentValue.slice(end);
+            targetInput.selectionStart = targetInput.selectionEnd = start;
+          }
+          targetInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        return;
+      }
+    }
+
+    // For Univer contenteditable, handle Backspace with execCommand
+    const univerEditor = document.querySelector('[contenteditable="true"][data-u-comp="editor"]') as HTMLElement;
+    if (key === 'Backspace' && univerEditor && document.activeElement === univerEditor) {
+      univerEditor.focus();
+      document.execCommand('delete', false);
       return;
     }
+
+    // Find the best target for keyboard events
+    // Univer's event handlers expect event.target to be a DOM Node, not window
+    const keyTarget = lastClickedElementRef.current || document.activeElement || document.body;
 
     const keydownEvent = new KeyboardEvent('keydown', {
       key: key,
@@ -246,8 +323,9 @@ export const DesktopEnvironment: React.FC<DesktopEnvironmentProps> = ({ history 
       which: keyCode,
       bubbles: true,
       cancelable: true,
+      view: window,
     });
-    targetElement.dispatchEvent(keydownEvent);
+    keyTarget.dispatchEvent(keydownEvent);
 
     const keyupEvent = new KeyboardEvent('keyup', {
       key: key,
@@ -256,17 +334,9 @@ export const DesktopEnvironment: React.FC<DesktopEnvironmentProps> = ({ history 
       which: keyCode,
       bubbles: true,
       cancelable: true,
+      view: window,
     });
-    targetElement.dispatchEvent(keyupEvent);
-
-    // For Enter on forms, also try submitting
-    const activeElement = document.activeElement;
-    if (key.toLowerCase() === 'enter' && activeElement instanceof HTMLInputElement) {
-      const form = activeElement.closest('form');
-      if (form) {
-        form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-      }
-    }
+    keyTarget.dispatchEvent(keyupEvent);
   }, []);
 
   // Process new actions from history

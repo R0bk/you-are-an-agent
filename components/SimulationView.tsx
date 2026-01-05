@@ -267,7 +267,13 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
   }
 
   const activeImageUrl = level.imageUrl || imageUrl;
-  const tokenCount = Math.round(input.length * 1.5 + history.length * 50);
+
+  // Estimate token count based on actual content (~4 chars per token for English)
+  const estimateTokens = (text: string) => Math.ceil(text.length / 4);
+  const tokenCount = history.reduce((sum, msg) => {
+    const content = typeof msg.content === 'string' ? msg.content : '';
+    return sum + estimateTokens(content);
+  }, estimateTokens(level.systemPrompt || '') + estimateTokens(level.userPrompt || '') + estimateTokens(input));
 
   return (
     <>

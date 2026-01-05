@@ -96,9 +96,9 @@ export const LevelCompleteOverlay: React.FC<LevelCompleteOverlayProps> = ({
       }
     }
 
-    // Helper hint below the button (inside border).
+    // Helper hint below the button (inside border, on the last inner row).
     const hint = '[ENTER] CONTINUE  •  [CLICK] SKIP ANIMATION';
-    pushTextOps(all, centerX(clampText(hint, innerWidth - 2)), boxHeight - 3, clampText(hint, innerWidth - 2));
+    pushTextOps(all, centerX(clampText(hint, innerWidth - 2)), boxHeight - 2, clampText(hint, innerWidth - 2));
 
     return { ops: all, btnX, btnY, btnWidth: btn.width, btnHeight: btn.height };
   }, [boxWidth, boxHeight, levelId, levelTitle, feedback, tokenCount, continueLabel]);
