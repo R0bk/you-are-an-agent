@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@google/genai": "^1.34.0",
+    "@playwright/test": "^1.57.0",
     "@univerjs/preset-sheets-core": "^0.15.0",
     "@univerjs/presets": "^0.15.0",
     "lucide-react": "^0.562.0",
