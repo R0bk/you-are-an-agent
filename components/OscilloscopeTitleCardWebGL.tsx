@@ -6,6 +6,15 @@ interface Point {
   y: number;
 }
 
+// Animation phases after text drawing
+type AnimationPhase = 'text' | 'dissolve' | 'lissajous' | 'collapse' | 'fadeout';
+
+// Phase durations in seconds
+const DISSOLVE_DURATION = 1.4;   // Text morphs into Lissajous (longer for smooth blend)
+const LISSAJOUS_DURATION = 2.0;  // Lissajous bloom
+const COLLAPSE_DURATION = 0.8;   // Spiral collapse
+const FADEOUT_DURATION = 0.2;
+
 interface OscilloscopeTitleCardWebGLProps {
   onComplete?: () => void;
   skipDelay?: number;
@@ -793,7 +802,6 @@ export const OscilloscopeTitleCardWebGL: React.FC<OscilloscopeTitleCardWebGLProp
 
     const {
       gl,
-      lineProgram,
       pointProgram,
       fadeProgram,
       bloomHProgram,
@@ -801,7 +809,6 @@ export const OscilloscopeTitleCardWebGL: React.FC<OscilloscopeTitleCardWebGLProp
       smoothBloomHProgram,
       smoothBloomVProgram,
       compositeProgram,
-      lineBuffer,
       pointBuffer,
       quadBuffer,
       mainFB1,
@@ -820,12 +827,22 @@ export const OscilloscopeTitleCardWebGL: React.FC<OscilloscopeTitleCardWebGLProp
 
     // Animation state
     let t = 0;
-    let passCount = 0;
-    const maxPasses = 250;
     const maxSpeed = 1000.0;
     const accelerationDuration = 8.0;
     const startTime = Date.now();
     let lastFrameTime = Date.now();
+
+    // Phase state machine
+    let animationPhase: AnimationPhase = 'text';
+    let phaseStartTime = 0;
+    let lissajousTime = 0; // Parametric time for Lissajous curves
+
+    // Text phase: run through text multiple times before transitioning
+    let textPassCount = 0;
+    const textPassesBeforeTransition = 30; // Run through text 30 times before music animation
+
+    // Track last text position for smooth transition to Lissajous
+    let lastTextPosition: Point = { x: width / 2, y: height / 2 };
 
     // Time-based decay constants
     // Target: at 60fps (16.67ms), a full-bright pixel should decay to ~0.237
@@ -862,6 +879,79 @@ export const OscilloscopeTitleCardWebGL: React.FC<OscilloscopeTitleCardWebGLProp
       };
     };
 
+    // Generate Lissajous curve points
+    // Classic oscilloscope X-Y mode: x = A*sin(a*t + δ), y = B*sin(b*t)
+    const generateLissajousPoints = (
+      centerX: number,
+      centerY: number,
+      amplitude: number,
+      freqA: number,
+      freqB: number,
+      phaseShift: number,
+      timeStart: number,
+      timeEnd: number,
+      numPoints: number,
+      deltaMs: number
+    ): { x: number; y: number; brightness: number }[] => {
+      const points: { x: number; y: number; brightness: number }[] = [];
+      const drawnPixels = new Set<string>();
+
+      for (let i = 0; i < numPoints; i++) {
+        const progress = i / (numPoints - 1);
+        const time = timeStart + (timeEnd - timeStart) * progress;
+
+        const x = centerX + amplitude * Math.sin(freqA * time + phaseShift);
+        const y = centerY + amplitude * Math.sin(freqB * time);
+
+        // Pixel deduplication
+        const px = Math.round(x);
+        const py = Math.round(y);
+        const key = `${px},${py}`;
+        if (drawnPixels.has(key)) continue;
+        drawnPixels.add(key);
+
+        // Brightness gradient: older points are dimmer
+        const timeAgoMs = (1.0 - progress) * deltaMs;
+        const brightness = Math.pow(decayPerMs, timeAgoMs);
+
+        points.push({ x: px, y: py, brightness });
+      }
+
+      return points;
+    };
+
+    // Get Lissajous parameters that evolve over time
+    // Starts simple (circle), becomes more complex, then simplifies for collapse
+    const getLissajousParams = (phaseProgress: number, isCollapse: boolean) => {
+      // Frequency ratios that create interesting patterns
+      // Circle (1:1) → Figure-8 (1:2) → Complex (2:3) → Trefoil (3:2) → Circle
+      const patterns = [
+        { a: 1, b: 1, phase: Math.PI / 2 },   // Circle
+        { a: 1, b: 2, phase: Math.PI / 4 },   // Figure-8
+        { a: 2, b: 3, phase: Math.PI / 3 },   // Complex knot
+        { a: 3, b: 4, phase: Math.PI / 6 },   // More complex
+        { a: 3, b: 2, phase: Math.PI / 2 },   // Trefoil
+      ];
+
+      if (isCollapse) {
+        // During collapse, stay on a simple shrinking circle
+        return { freqA: 1, freqB: 1, phaseShift: Math.PI / 2 };
+      }
+
+      // Interpolate between patterns based on progress
+      const patternIndex = phaseProgress * (patterns.length - 1);
+      const idx = Math.floor(patternIndex);
+      const frac = patternIndex - idx;
+      const p1 = patterns[Math.min(idx, patterns.length - 1)];
+      const p2 = patterns[Math.min(idx + 1, patterns.length - 1)];
+
+      return {
+        freqA: p1.a + (p2.a - p1.a) * frac,
+        freqB: p1.b + (p2.b - p1.b) * frac,
+        phaseShift: p1.phase + (p2.phase - p1.phase) * frac,
+      };
+    };
+
     const drawQuad = (program: { attribs: { position: number } }) => {
       gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
       gl.enableVertexAttribArray(program.attribs.position);
@@ -877,29 +967,12 @@ export const OscilloscopeTitleCardWebGL: React.FC<OscilloscopeTitleCardWebGLProp
       const elapsed = (now - startTime) / 1000;
       const currentSpeed = getSpeed(elapsed);
 
-      const prevT = t;
-      t += currentSpeed;
-
-      let didWrap = false;
-      if (t >= allSegments.length) {
-        passCount++;
-        if (passCount >= maxPasses) {
-          setIsComplete(true);
-          setTimeout(() => onComplete?.(), skipDelay);
-          return;
-        }
-        t = t % allSegments.length;
-        didWrap = true;
-      }
-
       // Time-based fade amount - scales with actual frame time
-      // At 60fps (16.67ms): fadeAmount ≈ 0.237 (same as before)
-      // At 30fps (33.33ms): fadeAmount ≈ 0.056 (more decay for longer frame)
-      const timeBasedFade = Math.pow(decayPerMs, deltaMs)
+      const timeBasedFade = Math.pow(decayPerMs, deltaMs);
 
       // Collect new points with time-based brightness gradient
       const drawnPixels = new Set<string>();
-      const newPoints: { x: number; y: number; brightness: number }[] = [];
+      let newPoints: { x: number; y: number; brightness: number }[] = [];
       const maxPointsPerFrame = 4000;
 
       const addPoint = (point: Point, progress: number) => {
@@ -908,46 +981,240 @@ export const OscilloscopeTitleCardWebGL: React.FC<OscilloscopeTitleCardWebGLProp
         const key = `${px},${py}`;
         if (!drawnPixels.has(key) && newPoints.length < maxPointsPerFrame) {
           drawnPixels.add(key);
-          // Time-based brightness: how long ago was this point drawn?
-          // progress=0 was drawn deltaMs ago, progress=1 was drawn just now
           const timeAgoMs = (1.0 - progress) * deltaMs;
           const brightness = Math.pow(decayPerMs, timeAgoMs);
           newPoints.push({ x: px, y: py, brightness });
         }
       };
 
-      // Sample path with fixed number of samples based on distance traveled
-      const distTraveled = didWrap
-        ? (allSegments.length - prevT) + t
-        : Math.abs(t - prevT);
+      // ============ PHASE STATE MACHINE ============
+      if (animationPhase === 'text') {
+        // Text drawing phase
+        const prevT = t;
+        t += currentSpeed;
 
-      const numSamples = Math.max(2, Math.min(maxPointsPerFrame, Math.ceil(distTraveled * 5)));
+        let didWrap = false;
+        if (t >= allSegments.length) {
+          textPassCount++;
+          if (textPassCount >= textPassesBeforeTransition) {
+            // Text complete! Transition to dissolve phase
+            animationPhase = 'dissolve';
+            phaseStartTime = now;
+            t = 0; // Restart path for dissolve
+          } else {
+            // Wrap around for another pass
+            t = t % allSegments.length;
+            didWrap = true;
+          }
+        }
 
-      if (!didWrap) {
+        // Sample text path and track last position
+        if (!didWrap) {
+          const distTraveled = Math.abs(t - prevT);
+          const numSamples = Math.max(2, Math.min(maxPointsPerFrame, Math.ceil(distTraveled * 5)));
+
+          for (let i = 0; i <= numSamples; i++) {
+            const progress = i / numSamples;
+            const interpT = prevT + (Math.min(t, allSegments.length - 0.001) - prevT) * progress;
+            const point = getPointAtT(interpT);
+            if (point) {
+              addPoint(point, progress);
+              lastTextPosition = point; // Track beam position
+            }
+          }
+        } else {
+          // Handle wrap-around sampling
+          const distTraveled = (allSegments.length - prevT) + t;
+          const numSamples = Math.max(2, Math.min(maxPointsPerFrame, Math.ceil(distTraveled * 5)));
+          const ratio = (allSegments.length - prevT) / distTraveled;
+          const samplesBeforeWrap = Math.ceil(numSamples * ratio);
+          const samplesAfterWrap = numSamples - samplesBeforeWrap;
+          const totalSamples = samplesBeforeWrap + samplesAfterWrap;
+
+          for (let i = 0; i <= samplesBeforeWrap; i++) {
+            const progress = i / totalSamples;
+            const interpT = prevT + (allSegments.length - prevT) * (i / Math.max(1, samplesBeforeWrap));
+            const point = getPointAtT(Math.min(interpT, allSegments.length - 0.001));
+            if (point) {
+              addPoint(point, progress);
+              lastTextPosition = point;
+            }
+          }
+          for (let i = 1; i <= samplesAfterWrap; i++) {
+            const progress = (samplesBeforeWrap + i) / totalSamples;
+            const interpT = t * (i / Math.max(1, samplesAfterWrap));
+            const point = getPointAtT(interpT);
+            if (point) {
+              addPoint(point, progress);
+              lastTextPosition = point;
+            }
+          }
+        }
+
+      } else if (animationPhase === 'dissolve') {
+        // Dissolve phase: mathematically blend text path → Lissajous curve
+        const phaseElapsed = (now - phaseStartTime) / 1000;
+        const phaseProgress = Math.min(phaseElapsed / DISSOLVE_DURATION, 1);
+
+        if (phaseProgress >= 1) {
+          animationPhase = 'lissajous';
+          phaseStartTime = now;
+          // Don't reset lissajousTime - continue smoothly
+        }
+
+        // Blend factor: 0 = pure text, 1 = pure Lissajous
+        // Use smooth ease-in-out for natural transition
+        const blendFactor = phaseProgress * phaseProgress * (3 - 2 * phaseProgress); // Smoothstep
+
+        // Continue tracing text path
+        const prevT = t;
+        const dissolveSpeed = maxSpeed * 0.6;
+        t += dissolveSpeed;
+        if (t >= allSegments.length) t = t % allSegments.length;
+
+        // Lissajous parameters - start simple, stay simple for clean blend
+        const lissajousAmplitude = Math.min(width, height) * 0.2;
+        const lissajousCenterX = width / 2;
+        const lissajousCenterY = height / 2;
+
+        // Advance Lissajous time
+        const lissajousSpeed = 6 + phaseProgress * 4;
+        const prevLissajousTime = lissajousTime;
+        lissajousTime += (deltaMs / 1000) * lissajousSpeed;
+
+        // Sample points along both paths and blend
+        const distTraveled = Math.abs(t - prevT) + (t < prevT ? allSegments.length : 0);
+        const numSamples = Math.max(2, Math.min(maxPointsPerFrame, Math.ceil(distTraveled * 5)));
+
         for (let i = 0; i <= numSamples; i++) {
-          const progress = i / numSamples; // 0 at start (oldest), 1 at end (newest)
-          const interpT = prevT + (t - prevT) * progress;
-          const point = getPointAtT(interpT);
-          if (point) addPoint(point, progress);
-        }
-      } else {
-        const ratio = (allSegments.length - prevT) / distTraveled;
-        const samplesBeforeWrap = Math.ceil(numSamples * ratio);
-        const samplesAfterWrap = numSamples - samplesBeforeWrap;
-        const totalSamples = samplesBeforeWrap + samplesAfterWrap;
+          const sampleProgress = i / numSamples;
 
-        for (let i = 0; i <= samplesBeforeWrap; i++) {
-          const progress = i / totalSamples;
-          const interpT = prevT + (allSegments.length - prevT) * (i / Math.max(1, samplesBeforeWrap));
-          const point = getPointAtT(Math.min(interpT, allSegments.length - 0.001));
-          if (point) addPoint(point, progress);
+          // Text path position
+          let interpT = prevT + distTraveled * sampleProgress;
+          if (interpT >= allSegments.length) interpT -= allSegments.length;
+          const textPoint = getPointAtT(interpT);
+
+          // Lissajous position at same progress through frame
+          const lissT = prevLissajousTime + (lissajousTime - prevLissajousTime) * sampleProgress;
+          const lissX = lissajousCenterX + lissajousAmplitude * Math.sin(lissT + Math.PI / 2);
+          const lissY = lissajousCenterY + lissajousAmplitude * Math.sin(lissT * 1.5);
+
+          if (textPoint) {
+            // Add subtle perturbation to text that increases with progress
+            const perturbAmt = 20 * blendFactor;
+            const perturbPhase = interpT * 0.03 + phaseElapsed * 5;
+            const textX = textPoint.x + Math.sin(perturbPhase) * perturbAmt;
+            const textY = textPoint.y + Math.sin(perturbPhase * 1.3) * perturbAmt;
+
+            // Blend between text position and Lissajous position
+            const finalX = textX * (1 - blendFactor) + lissX * blendFactor;
+            const finalY = textY * (1 - blendFactor) + lissY * blendFactor;
+
+            lastTextPosition = { x: finalX, y: finalY };
+
+            const px = Math.round(finalX);
+            const py = Math.round(finalY);
+            const key = `${px},${py}`;
+            if (!drawnPixels.has(key) && newPoints.length < maxPointsPerFrame) {
+              drawnPixels.add(key);
+              const timeAgoMs = (1.0 - sampleProgress) * deltaMs;
+              const brightness = Math.pow(decayPerMs, timeAgoMs);
+              newPoints.push({ x: px, y: py, brightness });
+            }
+          }
         }
-        for (let i = 1; i <= samplesAfterWrap; i++) {
-          const progress = (samplesBeforeWrap + i) / totalSamples;
-          const interpT = t * (i / Math.max(1, samplesAfterWrap));
-          const point = getPointAtT(interpT);
-          if (point) addPoint(point, progress);
+
+      } else if (animationPhase === 'lissajous') {
+        // Lissajous bloom phase - continues smoothly from dissolve
+        const phaseElapsed = (now - phaseStartTime) / 1000;
+        const phaseProgress = Math.min(phaseElapsed / LISSAJOUS_DURATION, 1);
+
+        if (phaseProgress >= 1) {
+          animationPhase = 'collapse';
+          phaseStartTime = now;
         }
+
+        // Amplitude grows from dissolve size to full size
+        const startAmplitude = Math.min(width, height) * 0.2; // Match dissolve end
+        const maxAmplitude = Math.min(width, height) * 0.3;
+        const amplitudeEase = 1 - Math.pow(1 - phaseProgress, 2);
+        const amplitude = startAmplitude + (maxAmplitude - startAmplitude) * amplitudeEase;
+
+        // Get evolving Lissajous parameters
+        const { freqA, freqB, phaseShift } = getLissajousParams(phaseProgress, false);
+
+        // Speed continues from dissolve, gradually increases
+        const baseSpeed = 10;
+        const speedMultiplier = 1 + phaseProgress * 2;
+
+        const prevLissajousTime = lissajousTime;
+        lissajousTime += (deltaMs / 1000) * baseSpeed * speedMultiplier;
+
+        // Generate Lissajous points centered on screen
+        newPoints = generateLissajousPoints(
+          width / 2,
+          height / 2,
+          amplitude,
+          freqA,
+          freqB,
+          phaseShift,
+          prevLissajousTime,
+          lissajousTime,
+          Math.ceil(deltaMs * 3),
+          deltaMs
+        );
+
+      } else if (animationPhase === 'collapse') {
+        // Spiral collapse phase
+        const phaseElapsed = (now - phaseStartTime) / 1000;
+        const phaseProgress = Math.min(phaseElapsed / COLLAPSE_DURATION, 1);
+
+        if (phaseProgress >= 1) {
+          animationPhase = 'fadeout';
+          phaseStartTime = now;
+        }
+
+        // Amplitude shrinks exponentially to center
+        const maxAmplitude = Math.min(width, height) * 0.25;
+        const shrinkEase = Math.pow(1 - phaseProgress, 2); // Ease in quad - fast at end
+        const amplitude = maxAmplitude * shrinkEase;
+
+        // Get simple circular pattern for collapse
+        const { freqA, freqB, phaseShift } = getLissajousParams(phaseProgress, true);
+
+        // Speed slows down as it collapses (like winding down)
+        const baseSpeed = 12;
+        const speedMultiplier = 1 - phaseProgress * 0.7; // Slow down
+
+        const prevLissajousTime = lissajousTime;
+        lissajousTime += (deltaMs / 1000) * baseSpeed * speedMultiplier;
+
+        // Generate shrinking Lissajous
+        newPoints = generateLissajousPoints(
+          width / 2,
+          height / 2,
+          amplitude,
+          freqA,
+          freqB,
+          phaseShift,
+          prevLissajousTime,
+          lissajousTime,
+          Math.ceil(deltaMs * 2),
+          deltaMs
+        );
+
+      } else if (animationPhase === 'fadeout') {
+        // Just let phosphor decay, no new points
+        const phaseElapsed = (now - phaseStartTime) / 1000;
+
+        if (phaseElapsed >= FADEOUT_DURATION) {
+          setIsComplete(true);
+          setTimeout(() => onComplete?.(), skipDelay);
+          return;
+        }
+
+        // No new points - just fade existing phosphor
+        newPoints = [];
       }
 
       // === PASS 1: Fade previous frame (time-based) ===

@@ -24,6 +24,8 @@ interface ChatMessageProps {
   isAnimating: boolean;
   onAnimationComplete: () => void;
   speedMultiplier?: number;
+  isLastScreenshot?: boolean;
+  onCheatClick?: () => void;
 }
 
 export const ChatMessage: React.FC<ChatMessageProps> = ({
@@ -35,6 +37,8 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
     isAnimating,
     onAnimationComplete,
     speedMultiplier = 1,
+    isLastScreenshot = false,
+    onCheatClick,
 }) => {
   
   if (!isVisible) return null;
@@ -121,11 +125,39 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
           addTag("tool", roleColor);
           addHeaderEnd(channelName);
           s.push({ text: msg.content, className: contentColor });
+
+          // Add screenshot image if present
+          if (msg.imageUrl) {
+              s.push({
+                  node: (
+                    <div className="my-3 relative block max-w-[768px]">
+                        <img
+                            src={msg.imageUrl}
+                            alt="Desktop screenshot"
+                            className="rounded border border-zinc-700 w-full h-auto"
+                        />
+                        {/* Cheat button on the last screenshot */}
+                        {isLastScreenshot && onCheatClick && (
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onCheatClick();
+                                }}
+                                className="absolute top-2 right-2 px-2 py-1 bg-black/80 hover:bg-black text-terminal-green text-xs font-mono border border-terminal-green/50 hover:border-terminal-green rounded cursor-pointer transition-all"
+                            >
+                                [CHEAT]
+                            </button>
+                        )}
+                    </div>
+                  )
+              });
+          }
+
           addFooter();
       }
 
       return s;
-  }, [msg, activeImageUrl, isFirstUserMessage]);
+  }, [msg, activeImageUrl, isFirstUserMessage, isLastScreenshot, onCheatClick]);
 
   return (
     <div>

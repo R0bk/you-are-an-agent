@@ -140,6 +140,23 @@ export const DevTools: React.FC<DevToolsProps> = ({
                     ))}
                   </div>
                 </div>
+                <div className="px-2 py-2 rounded bg-black/30 border border-zinc-800">
+                  <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2">CRT Warp</div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={crtWebgl.warp}
+                    onChange={(e) => setCrtWebgl((p: any) => ({ ...p, warp: Number(e.target.value) }))}
+                    className="w-full"
+                  />
+                  <div className="flex justify-between text-[10px] font-mono text-zinc-500 mt-1">
+                    <span>None</span>
+                    <span>{(crtWebgl.warp * 100).toFixed(0)}%</span>
+                    <span>Max</span>
+                  </div>
+                </div>
                 {crtMode === 'webgl' && (
                   <div className="px-2 py-2 rounded bg-black/30 border border-zinc-800 space-y-2">
                     <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500">CRT (WebGL) Settings</div>
@@ -225,39 +242,6 @@ export const DevTools: React.FC<DevToolsProps> = ({
 
                     <label className="block">
                       <div className="flex justify-between text-[10px] font-mono text-zinc-400">
-                        <span>UI Curvature (Agent box)</span>
-                        <span className="text-zinc-500">{crtWebgl.curvature.toFixed(2)}</span>
-                      </div>
-                      <input
-                        type="range"
-                        min={0}
-                        max={1}
-                        step={0.01}
-                        value={crtWebgl.curvature}
-                        onChange={(e) => setCrtWebgl((p: any) => ({ ...p, curvature: Number(e.target.value) }))}
-                        className="w-full"
-                      />
-                    </label>
-
-                    <label className="block">
-                      <div className="flex justify-between text-[10px] font-mono text-zinc-400">
-                        <span>2D Warp (SVG, experimental)</span>
-                        <span className="text-zinc-500">{crtWebgl.uiWarp2d.toFixed(0)}</span>
-                      </div>
-                      <input
-                        type="range"
-                        min={0}
-                        max={100}
-                        step={1}
-                        value={crtWebgl.uiWarp2d}
-                        onChange={(e) => setCrtWebgl((p: any) => ({ ...p, uiWarp2d: Number(e.target.value) }))}
-                        className="w-full"
-                      />
-                      <div className="text-[10px] font-mono text-zinc-500 mt-1">Per-pixel warp. Can be heavy / browser-dependent.</div>
-                    </label>
-
-                    <label className="block">
-                      <div className="flex justify-between text-[10px] font-mono text-zinc-400">
                         <span>Apply to Content (Warp/Scanlines)</span>
                         <span className="text-zinc-500">{crtWebgl.applyToContent ? 'ON' : 'OFF'}</span>
                       </div>
@@ -281,22 +265,6 @@ export const DevTools: React.FC<DevToolsProps> = ({
                             checked={crtWebgl.contentFilters}
                             onChange={(e) => setCrtWebgl((p: any) => ({ ...p, contentFilters: e.target.checked }))}
                             className="mt-1"
-                          />
-                        </label>
-
-                        <label className="block">
-                          <div className="flex justify-between text-[10px] font-mono text-zinc-400">
-                            <span>Content Warp</span>
-                            <span className="text-zinc-500">{crtWebgl.contentWarp.toFixed(2)}</span>
-                          </div>
-                          <input
-                            type="range"
-                            min={0}
-                            max={1}
-                            step={0.01}
-                            value={crtWebgl.contentWarp}
-                            onChange={(e) => setCrtWebgl((p: any) => ({ ...p, contentWarp: Number(e.target.value) }))}
-                            className="w-full"
                           />
                         </label>
 
@@ -427,22 +395,6 @@ export const DevTools: React.FC<DevToolsProps> = ({
                         </div>
                       </div>
                     )}
-
-                    <label className="block">
-                      <div className="flex justify-between text-[10px] font-mono text-zinc-400">
-                        <span>Distortion</span>
-                        <span className="text-zinc-500">{crtWebgl.distortion.toFixed(2)}</span>
-                      </div>
-                      <input
-                        type="range"
-                        min={0}
-                        max={0.2}
-                        step={0.005}
-                        value={crtWebgl.distortion}
-                        onChange={(e) => setCrtWebgl((p: any) => ({ ...p, distortion: Number(e.target.value) }))}
-                        className="w-full"
-                      />
-                    </label>
 
                     <label className="block">
                       <div className="flex justify-between text-[10px] font-mono text-zinc-400">

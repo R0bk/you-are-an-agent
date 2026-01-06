@@ -2,6 +2,12 @@ import { Level } from '../types';
 
 const REALISTIC_TOOLS = [
   {
+    "name": "screenshot",
+    "title": "Take Screenshot",
+    "description": "Captures a screenshot of the current desktop state.",
+    "inputSchema": { "type": "object", "properties": {}, "required": [] }
+  },
+  {
     "name": "mouse_move",
     "title": "Move Mouse",
     "description": "Moves the mouse cursor to specific coordinates on the screen (1024x768 resolution).",
@@ -96,7 +102,7 @@ export const level3: Level = {
     type: 'DESKTOP',
     systemPrompt: "You are an agent with computer access. You see a simulated desktop. Coordinates: Top-Left is (0,0). Screen resolution: 1024x768. Desktop icons: Notes.txt at (50,50), Excel spreadsheet at (50,150).",
     userPrompt: "Hey, the Q4 expense report total looks wrong - it's showing $26,448 but I think it should be higher. Can you open Excel and fix whatever's broken?",
-    tools: ["mouse_move(x, y)", "click()", "double_click()", "triple_click()", "type(text)", "key(key)"],
+    tools: ["screenshot()", "mouse_move(x, y)", "click()", "double_click()", "triple_click()", "type(text)", "key(key)"],
     realisticTools: REALISTIC_TOOLS,
     placeholder: "mouse_move(50, 150)",
     hint: "The Excel icon is at (50, 150). Double-click to open it. Check if the Grand Total formula includes all expense categories.",
@@ -157,6 +163,11 @@ export const level3: Level = {
       // Hallucination Check
       if (lowerInput.includes("move_mouse")) {
           return { status: 'FAIL', message: "NameError: name 'move_mouse' is not defined. Did you mean: 'mouse_move'?", failType: 'TOOL_ERROR' };
+      }
+
+      // Screenshot
+      if (lowerInput.includes("screenshot")) {
+          return { status: 'INTERMEDIATE', message: "Screenshot captured." };
       }
 
       // Mouse move

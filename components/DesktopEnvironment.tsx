@@ -1,10 +1,16 @@
-import React, { useMemo, useRef, useState, useEffect, useCallback } from 'react';
+import React, { useMemo, useRef, useState, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
+import { toPng } from 'html-to-image';
 import { Message } from '../types';
 import { MousePointer2, FileText, Table } from 'lucide-react';
 import { SpreadsheetWindow } from './SpreadsheetWindow';
 
 interface DesktopEnvironmentProps {
   history: Message[];
+  forceScale?: number; // Skip resize calculation, use this fixed scale
+}
+
+export interface DesktopEnvironmentRef {
+  captureScreenshot: () => Promise<string | null>;
 }
 
 // Fixed coordinates for "Icons"
@@ -13,15 +19,121 @@ const ICONS = {
   SPREADSHEET: { x: 50, y: 150, label: 'Excel' }
 };
 
-export const DesktopEnvironment: React.FC<DesktopEnvironmentProps> = ({ history }) => {
+export const DesktopEnvironment = forwardRef<DesktopEnvironmentRef, DesktopEnvironmentProps>(({ history, forceScale }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const desktopRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(1);
+  const [scale, setScale] = useState(forceScale ?? 1);
   const lastProcessedActionRef = useRef<number>(0);
   const lastClickedElementRef = useRef<Element | null>(null);
 
+  // Expose captureScreenshot method via ref
+  useImperativeHandle(ref, () => ({
+    captureScreenshot: async () => {
+      if (!desktopRef.current) return null;
+      try {
+        // Wait 500ms for things to render properly before capturing
+        await new Promise(resolve => setTimeout(resolve, 500));
+        // Find all UniverJS canvases (main sheet + formula bar + any other render canvases)
+        // The formula bar uses data-u-comp="render-canvas" attribute
+        const univerCanvases = desktopRef.current.querySelectorAll(
+          'canvas.univer-render-canvas, canvas[id*="univer"], canvas[data-u-comp="render-canvas"]'
+        );
+        console.log(`[DesktopEnv] Screenshot: found ${univerCanvases.length} UniverJS canvases`);
+
+        // Debug: what does desktopRef actually contain?
+        const debugRect = desktopRef.current.getBoundingClientRect();
+        console.log(`[DesktopEnv] desktopRef.current: class="${desktopRef.current.className?.substring(0, 50)}", pos=(${debugRect.left.toFixed(0)},${debugRect.top.toFixed(0)}), size=${debugRect.width.toFixed(0)}x${debugRect.height.toFixed(0)}`);
+
+        // Debug: all canvases in this desktop
+        const allCanvases = desktopRef.current.querySelectorAll('canvas');
+        console.log(`[DesktopEnv] Total canvases in desktop: ${allCanvases.length}`);
+
+        univerCanvases.forEach((c, i) => {
+          const canvas = c as HTMLCanvasElement;
+          const rect = canvas.getBoundingClientRect();
+          console.log(`[DesktopEnv] Canvas ${i}: class="${canvas.className}", id="${canvas.id?.substring(0, 30)}", data-u-comp="${canvas.getAttribute('data-u-comp')}", buffer=${canvas.width}x${canvas.height}, display=${rect.width.toFixed(0)}x${rect.height.toFixed(0)}, pos=(${rect.left.toFixed(0)},${rect.top.toFixed(0)})`);
+        });
+
+        // Capture base screenshot with html-to-image, filtering out UniverJS canvases
+        const baseDataUrl = await toPng(desktopRef.current, {
+          width: 1024,
+          height: 768,
+          backgroundColor: '#008080',
+          pixelRatio: 1,
+          // Skip ALL UniverJS canvases - we'll composite them manually
+          filter: (node) => {
+            if (node instanceof HTMLCanvasElement) {
+              // Filter out any canvas that's part of UniverJS
+              if (node.id?.includes('univer') || node.classList?.contains('univer-render-canvas')) {
+                return false;
+              }
+              // Filter out formula bar and other UniverJS render canvases
+              if (node.getAttribute('data-u-comp') === 'render-canvas') {
+                return false;
+              }
+              // Also filter canvases inside univer containers
+              if (node.closest('.univer-relative')) {
+                return false;
+              }
+            }
+            return true;
+          }
+        });
+
+        // Get desktop rect for position calculations
+        const desktopRect = desktopRef.current.getBoundingClientRect();
+        const scaleX = 1024 / desktopRect.width;
+        const scaleY = 768 / desktopRect.height;
+
+        // Create composite canvas
+        const compositeCanvas = document.createElement('canvas');
+        compositeCanvas.width = 1024;
+        compositeCanvas.height = 768;
+        const ctx = compositeCanvas.getContext('2d');
+
+        if (ctx) {
+          // Draw base screenshot
+          const baseImg = new Image();
+          await new Promise<void>((resolve, reject) => {
+            baseImg.onload = () => resolve();
+            baseImg.onerror = reject;
+            baseImg.src = baseDataUrl;
+          });
+          ctx.drawImage(baseImg, 0, 0);
+
+          // Composite all UniverJS canvases onto the screenshot
+          for (const canvas of univerCanvases) {
+            const univerCanvas = canvas as HTMLCanvasElement;
+            if (univerCanvas.width > 0 && univerCanvas.height > 0) {
+              const canvasRect = univerCanvas.getBoundingClientRect();
+              const canvasX = canvasRect.left - desktopRect.left;
+              const canvasY = canvasRect.top - desktopRect.top;
+
+              const scaledX = canvasX * scaleX;
+              const scaledY = canvasY * scaleY;
+              const scaledWidth = canvasRect.width * scaleX;
+              const scaledHeight = canvasRect.height * scaleY;
+
+              ctx.drawImage(univerCanvas, scaledX, scaledY, scaledWidth, scaledHeight);
+            }
+          }
+
+          return compositeCanvas.toDataURL('image/png');
+        }
+
+        return baseDataUrl;
+      } catch (error) {
+        console.error('[DesktopEnv] Screenshot capture failed:', error);
+        return null;
+      }
+    }
+  }), []);
+
   // Resize observer to handle scaling 1024x768 to fit parent
+  // Skip if forceScale is set (e.g., for hidden screenshot desktop)
   useEffect(() => {
+    if (forceScale !== undefined) return; // Skip resize calculation
+
     const handleResize = () => {
       if (containerRef.current) {
         const parent = containerRef.current.parentElement;
@@ -41,7 +153,7 @@ export const DesktopEnvironment: React.FC<DesktopEnvironmentProps> = ({ history 
     handleResize();
 
     return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  }, [forceScale]);
 
   // Extract cursor position and open app from history (for visual rendering)
   const visualState = useMemo(() => {
@@ -84,91 +196,121 @@ export const DesktopEnvironment: React.FC<DesktopEnvironmentProps> = ({ history 
     if (!desktopRef.current) return;
 
     const desktop = desktopRef.current;
-    const rect = desktop.getBoundingClientRect();
+    const desktopRect = desktop.getBoundingClientRect();
 
-    // Translate virtual coords (1024x768) to actual screen coords
-    const actualX = rect.left + (x * scale);
-    const actualY = rect.top + (y * scale);
+    console.log(`[DesktopEnv] dispatchEventAtCoords(${x}, ${y}, ${eventType}), scale=${scale}, desktopRect=(${desktopRect.left.toFixed(0)}, ${desktopRect.top.toFixed(0)})`);
 
-    const element = document.elementFromPoint(actualX, actualY);
-    if (element) {
-      const elementRect = element.getBoundingClientRect();
-      // Calculate offset relative to the element (for canvas handlers)
-      const offsetX = actualX - elementRect.left;
-      const offsetY = actualY - elementRect.top;
+    // Find the MAIN spreadsheet canvas - UniverJS uses multiple canvases
+    // Prioritize the main sheet canvas (has id containing "univer-sheet-main-canvas") over formula bar canvases
+    // ONLY search within our own desktop to avoid dispatching to both hidden and visible desktops
+    let canvas = desktop.querySelector('canvas[id*="univer-sheet-main-canvas"]') as HTMLCanvasElement | null;
+    if (!canvas) {
+      // Fallback to any UniverJS canvas
+      canvas = desktop.querySelector('canvas.univer-render-canvas, canvas[id*="univer"], canvas[data-u-comp="render-canvas"]') as HTMLCanvasElement | null;
+    }
 
-      // For canvas elements, account for CSS scaling vs actual canvas size
-      let canvasOffsetX = offsetX;
-      let canvasOffsetY = offsetY;
-      if (element instanceof HTMLCanvasElement) {
-        const scaleX = element.width / elementRect.width;
-        const scaleY = element.height / elementRect.height;
-        canvasOffsetX = offsetX * scaleX;
-        canvasOffsetY = offsetY * scaleY;
-      }
-
-      console.log(`[DesktopEnv] ${eventType} at (${x}, ${y}) -> actual (${actualX.toFixed(0)}, ${actualY.toFixed(0)}) -> offset (${canvasOffsetX.toFixed(0)}, ${canvasOffsetY.toFixed(0)}) -> element:`, element);
-
-      // Store the clicked element for later type/key events
-      lastClickedElementRef.current = element;
-
-      // Focus if it's an input, or find an input inside the clicked element
-      // Also select all text to make it easy to replace
-      if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
-        element.focus();
-        element.select(); // Select all text
-        lastClickedElementRef.current = element;
-      } else {
-        // Check if there's an input/textarea inside the clicked element
-        const inputInside = element.querySelector('input, textarea') as HTMLInputElement | HTMLTextAreaElement | null;
-        if (inputInside) {
-          inputInside.focus();
-          inputInside.select(); // Select all text
-          lastClickedElementRef.current = inputInside;
-        }
-      }
-
+    if (!canvas) {
+      console.log(`[DesktopEnv] No canvas found in this desktop, skipping click dispatch`);
+      // Fall back to clicking on desktop for non-canvas clicks (e.g., desktop icons)
       const eventProps = {
-        bubbles: true,
-        cancelable: true,
-        view: window,
-        clientX: actualX,
-        clientY: actualY,
-        screenX: actualX,
-        screenY: actualY,
-        offsetX: canvasOffsetX,
-        offsetY: canvasOffsetY,
-        button: 0,
-        buttons: 1,
-        pointerId: 1,
-        pointerType: 'mouse' as const,
-        isPrimary: true,
+        bubbles: true, cancelable: true, view: window,
+        clientX: x, clientY: y, offsetX: x, offsetY: y,
+        button: 0, buttons: 1,
       };
+      desktop.dispatchEvent(new MouseEvent(eventType === 'dblclick' ? 'dblclick' : 'click', eventProps));
+      return;
+    }
 
-      // Dispatch pointer events (canvas libraries often use these)
-      element.dispatchEvent(new PointerEvent('pointerdown', eventProps));
-      element.dispatchEvent(new PointerEvent('pointerup', { ...eventProps, buttons: 0 }));
-      element.dispatchEvent(new MouseEvent('click', eventProps));
+    // Get canvas position in screen coordinates
+    const canvasRect = canvas.getBoundingClientRect();
 
-      if (eventType === 'dblclick') {
-        // Second click for double-click
-        element.dispatchEvent(new PointerEvent('pointerdown', eventProps));
-        element.dispatchEvent(new PointerEvent('pointerup', { ...eventProps, buttons: 0 }));
-        element.dispatchEvent(new MouseEvent('click', eventProps));
-        element.dispatchEvent(new MouseEvent('dblclick', eventProps));
-      }
+    // Calculate canvas position relative to our desktop in virtual coordinates
+    // Note: getBoundingClientRect returns scaled values, so divide by scale
+    const canvasLeft = (canvasRect.left - desktopRect.left) / scale;
+    const canvasTop = (canvasRect.top - desktopRect.top) / scale;
 
-      if (eventType === 'tripleclick') {
-        // Second click
-        element.dispatchEvent(new PointerEvent('pointerdown', eventProps));
-        element.dispatchEvent(new PointerEvent('pointerup', { ...eventProps, buttons: 0 }));
-        element.dispatchEvent(new MouseEvent('click', { ...eventProps, detail: 2 }));
-        element.dispatchEvent(new MouseEvent('dblclick', eventProps));
-        // Third click
-        element.dispatchEvent(new PointerEvent('pointerdown', eventProps));
-        element.dispatchEvent(new PointerEvent('pointerup', { ...eventProps, buttons: 0 }));
-        element.dispatchEvent(new MouseEvent('click', { ...eventProps, detail: 3 }));
-      }
+    // Calculate click offset within the canvas (in virtual coordinates)
+    const offsetInCanvasX = x - canvasLeft;
+    const offsetInCanvasY = y - canvasTop;
+
+    console.log(`[DesktopEnv] Canvas at (${canvasLeft.toFixed(0)}, ${canvasTop.toFixed(0)}), click offset in canvas: (${offsetInCanvasX.toFixed(0)}, ${offsetInCanvasY.toFixed(0)})`);
+
+    // Check if the click is within the canvas bounds
+    const canvasDisplayWidth = canvasRect.width / scale;
+    const canvasDisplayHeight = canvasRect.height / scale;
+
+    if (offsetInCanvasX < 0 || offsetInCanvasX > canvasDisplayWidth ||
+        offsetInCanvasY < 0 || offsetInCanvasY > canvasDisplayHeight) {
+      console.log(`[DesktopEnv] Click outside canvas bounds, ignoring`);
+      return;
+    }
+
+    // Scale from virtual display coordinates to canvas buffer coordinates
+    const canvasBufferWidth = canvas.width;
+    const canvasBufferHeight = canvas.height;
+    const scaleToBufferX = canvasBufferWidth / canvasDisplayWidth;
+    const scaleToBufferY = canvasBufferHeight / canvasDisplayHeight;
+
+    const bufferX = offsetInCanvasX * scaleToBufferX;
+    const bufferY = offsetInCanvasY * scaleToBufferY;
+
+    console.log(`[DesktopEnv] Canvas buffer(${canvasBufferWidth}x${canvasBufferHeight}), display(${canvasDisplayWidth.toFixed(0)}x${canvasDisplayHeight.toFixed(0)}), bufferCoords(${bufferX.toFixed(0)}, ${bufferY.toFixed(0)})`);
+
+    // Store the clicked element for later type/key events
+    lastClickedElementRef.current = canvas;
+
+    // Calculate the actual screen coordinates for the click
+    // offsetInCanvasX/Y are in virtual (1024x768) space, scale them to screen space
+    const clickScreenX = canvasRect.left + (offsetInCanvasX * scale * (canvasRect.width / canvasDisplayWidth));
+    const clickScreenY = canvasRect.top + (offsetInCanvasY * scale * (canvasRect.height / canvasDisplayHeight));
+
+    console.log(`[DesktopEnv] Click at screen(${clickScreenX.toFixed(0)}, ${clickScreenY.toFixed(0)}), bufferCoords(${bufferX.toFixed(0)}, ${bufferY.toFixed(0)})`);
+
+    // Dispatch events with buffer coordinates as offsetX/offsetY
+    const eventProps = {
+      bubbles: true,
+      cancelable: true,
+      view: window,
+      clientX: clickScreenX,
+      clientY: clickScreenY,
+      screenX: clickScreenX,
+      screenY: clickScreenY,
+      offsetX: bufferX,
+      offsetY: bufferY,
+      button: 0,
+      buttons: 1,
+      pointerId: 1,
+      pointerType: 'mouse' as const,
+      isPrimary: true,
+    };
+
+    // Dispatch pointer/mouse events based on event type
+    // Only dispatch each event once to avoid double-selection
+    if (eventType === 'click') {
+      canvas.dispatchEvent(new PointerEvent('pointerdown', eventProps));
+      canvas.dispatchEvent(new PointerEvent('pointerup', { ...eventProps, buttons: 0 }));
+      canvas.dispatchEvent(new MouseEvent('click', eventProps));
+    } else if (eventType === 'dblclick') {
+      // For double-click, dispatch two complete click sequences then dblclick
+      canvas.dispatchEvent(new PointerEvent('pointerdown', { ...eventProps, detail: 1 }));
+      canvas.dispatchEvent(new PointerEvent('pointerup', { ...eventProps, buttons: 0, detail: 1 }));
+      canvas.dispatchEvent(new MouseEvent('click', { ...eventProps, detail: 1 }));
+      canvas.dispatchEvent(new PointerEvent('pointerdown', { ...eventProps, detail: 2 }));
+      canvas.dispatchEvent(new PointerEvent('pointerup', { ...eventProps, buttons: 0, detail: 2 }));
+      canvas.dispatchEvent(new MouseEvent('click', { ...eventProps, detail: 2 }));
+      canvas.dispatchEvent(new MouseEvent('dblclick', { ...eventProps, detail: 2 }));
+    } else if (eventType === 'tripleclick') {
+      // For triple-click, dispatch three complete click sequences
+      canvas.dispatchEvent(new PointerEvent('pointerdown', { ...eventProps, detail: 1 }));
+      canvas.dispatchEvent(new PointerEvent('pointerup', { ...eventProps, buttons: 0, detail: 1 }));
+      canvas.dispatchEvent(new MouseEvent('click', { ...eventProps, detail: 1 }));
+      canvas.dispatchEvent(new PointerEvent('pointerdown', { ...eventProps, detail: 2 }));
+      canvas.dispatchEvent(new PointerEvent('pointerup', { ...eventProps, buttons: 0, detail: 2 }));
+      canvas.dispatchEvent(new MouseEvent('click', { ...eventProps, detail: 2 }));
+      canvas.dispatchEvent(new MouseEvent('dblclick', { ...eventProps, detail: 2 }));
+      canvas.dispatchEvent(new PointerEvent('pointerdown', { ...eventProps, detail: 3 }));
+      canvas.dispatchEvent(new PointerEvent('pointerup', { ...eventProps, buttons: 0, detail: 3 }));
+      canvas.dispatchEvent(new MouseEvent('click', { ...eventProps, detail: 3 }));
     }
   }, [scale]);
 
@@ -201,17 +343,44 @@ export const DesktopEnvironment: React.FC<DesktopEnvironmentProps> = ({ history 
       return;
     }
 
-    // For canvas-based apps (like Univer), use execCommand on the contenteditable
+    // For canvas-based apps (like Univer), use the UniverJS API directly
+    // NOTE: Synthetic keyboard events don't work for UniverJS - it only responds to OS-level keyboard events.
+    // We use the exposed univerAPI to set cell values directly when in edit mode.
     const univerEditor = document.querySelector('[contenteditable="true"][data-u-comp="editor"]') as HTMLElement;
-    if (univerEditor) {
-      console.log(`[DesktopEnv] Found Univer editor, using execCommand:`, univerEditor);
-      univerEditor.focus();
-      // execCommand insertText is deprecated but works well for contenteditable
-      document.execCommand('insertText', false, text);
+    if (univerEditor && window.__univerAPI) {
+      console.log(`[DesktopEnv] Found Univer editor, using UniverJS API to set cell value`);
+      try {
+        const workbook = window.__univerAPI.getActiveWorkbook();
+        if (workbook) {
+          const sheet = workbook.getActiveSheet();
+          if (sheet) {
+            // Get the currently selected cell
+            const selection = sheet.getSelection();
+            const activeRange = selection?.getActiveRange();
+            if (activeRange) {
+              const row = activeRange.getRow();
+              const col = activeRange.getColumn();
+              // Get current value and append the typed text (simulating typing)
+              const currentCell = sheet.getRange(row, col);
+              const currentValue = currentCell.getValue();
+              const newValue = (currentValue !== null && currentValue !== undefined ? String(currentValue) : '') + text;
+              // Set the new value
+              currentCell.setValue(newValue);
+              console.log(`[DesktopEnv] Set cell (${row}, ${col}) to: ${newValue}`);
+            }
+          }
+        }
+      } catch (e) {
+        console.error('[DesktopEnv] UniverJS API error:', e);
+      }
+      return;
+    } else if (univerEditor) {
+      // Fallback: Univer editor found but no API - just log warning
+      console.warn(`[DesktopEnv] Univer editor found but no API available, typing will not work`);
       return;
     }
 
-    // Final fallback: dispatch keyboard events to window (for canvas apps that listen globally)
+    // Final fallback for non-Univer apps: dispatch to window
     console.log(`[DesktopEnv] Fallback: dispatching keyboard events to window`);
     for (const char of text) {
       const keydownEvent = new KeyboardEvent('keydown', {
@@ -304,16 +473,101 @@ export const DesktopEnvironment: React.FC<DesktopEnvironmentProps> = ({ history 
       }
     }
 
-    // For Univer contenteditable, handle Backspace with execCommand
+    // For Univer spreadsheet, use the UniverJS API for key operations
+    // NOTE: UniverJS creates contenteditable editors in a portal OUTSIDE the desktop container
     const univerEditor = document.querySelector('[contenteditable="true"][data-u-comp="editor"]') as HTMLElement;
-    if (key === 'Backspace' && univerEditor && document.activeElement === univerEditor) {
-      univerEditor.focus();
-      document.execCommand('delete', false);
-      return;
+    if (univerEditor && window.__univerAPI) {
+      console.log(`[DesktopEnv] Found Univer editor, using UniverJS API for key: ${key}`);
+      try {
+        const workbook = window.__univerAPI.getActiveWorkbook();
+        if (workbook) {
+          const sheet = workbook.getActiveSheet();
+          if (sheet) {
+            const selection = sheet.getSelection();
+            const activeRange = selection?.getActiveRange();
+
+            if (activeRange) {
+              const row = activeRange.getRow();
+              const col = activeRange.getColumn();
+              const currentCell = sheet.getRange(row, col);
+              const currentValue = currentCell.getValue();
+
+              if (key === 'Backspace') {
+                // Delete last character
+                const strValue = currentValue !== null && currentValue !== undefined ? String(currentValue) : '';
+                if (strValue.length > 0) {
+                  currentCell.setValue(strValue.slice(0, -1));
+                  console.log(`[DesktopEnv] Backspace: cell (${row}, ${col}) = "${strValue.slice(0, -1)}"`);
+                }
+                return;
+              }
+
+              if (key === 'Delete') {
+                // Clear cell
+                currentCell.setValue('');
+                console.log(`[DesktopEnv] Delete: cleared cell (${row}, ${col})`);
+                return;
+              }
+
+              if (key === 'Enter') {
+                // Enter confirms the edit - value is already set by type()
+                // Move selection down by one row
+                const maxRow = sheet.getMaxRows();
+                if (row + 1 < maxRow) {
+                  sheet.getRange(row + 1, col).activate();
+                  console.log(`[DesktopEnv] Enter: moved to cell (${row + 1}, ${col})`);
+                }
+                return;
+              }
+
+              if (key === 'Escape') {
+                // Escape cancels edit - in a real implementation we'd restore original value
+                // For now, just log (the game doesn't track original values)
+                console.log(`[DesktopEnv] Escape: edit cancelled for cell (${row}, ${col})`);
+                return;
+              }
+
+              if (key === 'Tab') {
+                // Tab moves to next column
+                const maxCol = sheet.getMaxColumns();
+                if (col + 1 < maxCol) {
+                  sheet.getRange(row, col + 1).activate();
+                  console.log(`[DesktopEnv] Tab: moved to cell (${row}, ${col + 1})`);
+                }
+                return;
+              }
+
+              // Arrow keys for navigation
+              if (key === 'ArrowUp' && row > 0) {
+                sheet.getRange(row - 1, col).activate();
+                console.log(`[DesktopEnv] ArrowUp: moved to cell (${row - 1}, ${col})`);
+                return;
+              }
+              if (key === 'ArrowDown' && row + 1 < sheet.getMaxRows()) {
+                sheet.getRange(row + 1, col).activate();
+                console.log(`[DesktopEnv] ArrowDown: moved to cell (${row + 1}, ${col})`);
+                return;
+              }
+              if (key === 'ArrowLeft' && col > 0) {
+                sheet.getRange(row, col - 1).activate();
+                console.log(`[DesktopEnv] ArrowLeft: moved to cell (${row}, ${col - 1})`);
+                return;
+              }
+              if (key === 'ArrowRight' && col + 1 < sheet.getMaxColumns()) {
+                sheet.getRange(row, col + 1).activate();
+                console.log(`[DesktopEnv] ArrowRight: moved to cell (${row}, ${col + 1})`);
+                return;
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.error('[DesktopEnv] UniverJS API error in key():', e);
+      }
+      // If we couldn't handle via API, fall through to default behavior
     }
 
-    // Find the best target for keyboard events
-    // Univer's event handlers expect event.target to be a DOM Node, not window
+    // Find the best target for keyboard events (fallback for non-Univer elements)
     const keyTarget = lastClickedElementRef.current || document.activeElement || document.body;
 
     const keydownEvent = new KeyboardEvent('keydown', {
@@ -487,4 +741,4 @@ export const DesktopEnvironment: React.FC<DesktopEnvironmentProps> = ({ history 
       </div>
     </div>
   );
-};
+});

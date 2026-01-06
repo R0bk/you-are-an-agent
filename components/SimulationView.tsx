@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Level, Message } from '../types';
 import { Terminal } from './Terminal';
-import { DesktopEnvironment } from './DesktopEnvironment';
+import { DesktopEnvironment, DesktopEnvironmentRef } from './DesktopEnvironment';
 import { GoogleGenAI } from "@google/genai";
 import { ChatMessage } from './ChatMessage';
 import { BootSequence } from './BootSequence';
@@ -51,6 +52,15 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
   
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const desktopRef = useRef<DesktopEnvironmentRef>(null);
+  const initialScreenshotStartedRef = useRef(false);
+
+  // For DESKTOP levels: toggle between screenshot-only and interactive mode
+  const [showInteractiveDesktop, setShowInteractiveDesktop] = useState(false);
+
+  // Track if we've captured the initial screenshot for DESKTOP levels
+  const [hasInitialScreenshot, setHasInitialScreenshot] = useState(false);
+
   useTerminalWheelScrollStep(scrollRef, { linesPerStep: 1 });
 
   // Initialize Level & Context
@@ -64,6 +74,51 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
                 // Give React a tick to mount the iframe before booting.
                 await new Promise(r => setTimeout(r, 0));
                 await webvmService.boot();
+
+                // Initialize the Python project files for level 4
+                const billingPy = `def calculate_total(subtotal, tax_rate=0.1):
+    """Calculate the total price including tax."""
+    tax = subtotal * tax_rate
+    return subtotal - tax  # BUG: Should be + not -
+`;
+
+                const runTestsPy = `import sys
+sys.path.insert(0, '.')
+from src.billing import calculate_total
+
+def test_calculate_total():
+    """Test that calculate_total adds tax correctly."""
+    # $100 with 10% tax should be $110
+    result = calculate_total(100, 0.1)
+    expected = 110.0
+
+    if abs(result - expected) < 0.01:
+        print("OK - calculate_total correctly adds tax")
+        return True
+    else:
+        print(f"FAIL - Expected {expected}, got {result}")
+        print(f"  The function seems to be subtracting instead of adding!")
+        return False
+
+if __name__ == "__main__":
+    print("Running billing tests...")
+    print("-" * 40)
+
+    if test_calculate_total():
+        print("-" * 40)
+        print("OK - All tests passed!")
+        sys.exit(0)
+    else:
+        print("-" * 40)
+        print("FAIL - Tests failed!")
+        sys.exit(1)
+`;
+
+                // Create src directory and write files
+                await webvmService.executeShell('mkdir -p src');
+                await webvmService.writeFile('src/billing.py', billingPy);
+                await webvmService.writeFile('run_tests.py', runTestsPy);
+                console.log("Level 4 project files initialized");
             } catch (e) {
                 console.error("WebVM boot failed", e);
             }
@@ -117,6 +172,8 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
         initialMessages.push({ role: 'user', content: level.userPrompt });
 
         setHistory(initialMessages);
+        setHasInitialScreenshot(false); // Reset for new level
+        initialScreenshotStartedRef.current = false; // Reset ref too
 
         // If not booting, focus immediately.
         // (We wait for the intro animation to finish before focusing.)
@@ -125,6 +182,63 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
     initLevel();
   }, [level, isRealisticMode]); // Re-run if level OR mode changes
 
+  // Capture initial screenshot for DESKTOP levels
+  useEffect(() => {
+    if (level.type !== 'DESKTOP') return;
+    if (hasInitialScreenshot) return;
+    if (initialScreenshotStartedRef.current) return; // Prevent re-runs
+    if (history.length === 0) return; // Wait for history to be initialized
+
+    initialScreenshotStartedRef.current = true; // Mark as started immediately
+
+    const captureInitialScreenshot = async () => {
+      // Wait for desktop to mount and render
+      await new Promise(r => setTimeout(r, 500));
+
+      if (!desktopRef.current) return;
+
+      // First screenshot
+      const screenshotUrl = await desktopRef.current.captureScreenshot();
+      if (screenshotUrl) {
+        setHistory(prev => [
+          ...prev,
+          { role: 'assistant', content: 'screenshot()' },
+          { role: 'tool', content: 'Screenshot captured.', imageUrl: screenshotUrl }
+        ]);
+      }
+
+      // DEV: Add predone commands for testing
+      // 1. mouse_move(30, 150)
+      setHistory(prev => [
+        ...prev,
+        { role: 'assistant', content: 'mouse_move(30, 150)' },
+        { role: 'tool', content: 'Cursor moved to (30, 150).' }
+      ]);
+      await new Promise(r => setTimeout(r, 300));
+
+      // 2. double_click()
+      await new Promise(r => setTimeout(r, 300));
+      const screenshot2 = await desktopRef.current?.captureScreenshot();
+      setHistory(prev => [
+        ...prev,
+        { role: 'assistant', content: 'double_click()' },
+        { role: 'tool', content: 'Application \'Microsoft Excel\' launched.', imageUrl: screenshot2 || undefined }
+      ]);
+
+      // 3. mouse_move(680, 325)
+      await new Promise(r => setTimeout(r, 500));
+      const screenshot3 = await desktopRef.current?.captureScreenshot();
+      setHistory(prev => [
+        ...prev,
+        { role: 'assistant', content: 'mouse_move(680, 325)' },
+        { role: 'tool', content: 'Cursor moved to (680, 325).', imageUrl: screenshot3 || undefined }
+      ]);
+
+      setHasInitialScreenshot(true);
+    };
+
+    captureInitialScreenshot();
+  }, [level.type, history.length, hasInitialScreenshot]);
 
   // Handle Boot Completion
   const handleBootComplete = () => {
@@ -213,8 +327,20 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
       if (validation.status === 'SUCCESS') {
         setStatus('SUCCESS');
         setFeedback(validation.message);
-        if (validation.toolOutput) {
-            setHistory(prev => [...prev, { role: 'tool', content: validation.toolOutput } as Message]);
+
+        // For DESKTOP levels, capture screenshot after a short delay for DOM updates
+        let screenshotUrl: string | undefined;
+        if (level.type === 'DESKTOP' && desktopRef.current) {
+            await new Promise(r => setTimeout(r, 200)); // Wait for DOM to update
+            screenshotUrl = await desktopRef.current.captureScreenshot() || undefined;
+        }
+
+        if (validation.toolOutput || screenshotUrl) {
+            setHistory(prev => [...prev, {
+                role: 'tool',
+                content: validation.toolOutput || validation.message,
+                imageUrl: screenshotUrl
+            } as Message]);
         }
         setTimeout(() => {
             setShowSuccessOverlay(true);
@@ -222,8 +348,20 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
 
       } else if (validation.status === 'INTERMEDIATE') {
         setStatus('IDLE');
-        if (validation.toolOutput) {
-            setHistory(prev => [...prev, { role: 'tool', content: validation.toolOutput } as Message]);
+
+        // For DESKTOP levels, capture screenshot after a short delay for DOM updates
+        let screenshotUrl: string | undefined;
+        if (level.type === 'DESKTOP' && desktopRef.current) {
+            await new Promise(r => setTimeout(r, 200)); // Wait for DOM to update
+            screenshotUrl = await desktopRef.current.captureScreenshot() || undefined;
+        }
+
+        if (validation.toolOutput || screenshotUrl) {
+            setHistory(prev => [...prev, {
+                role: 'tool',
+                content: validation.toolOutput || '',
+                imageUrl: screenshotUrl
+            } as Message]);
         }
         if (inputRef.current) inputRef.current.focus();
 
@@ -269,11 +407,17 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
   const activeImageUrl = level.imageUrl || imageUrl;
 
   // Estimate token count based on actual content (~4 chars per token for English)
+  // Images are counted as 560 tokens each (standard vision model token cost)
+  const IMAGE_TOKEN_COST = 560;
   const estimateTokens = (text: string) => Math.ceil(text.length / 4);
+  const baseTokens = estimateTokens(level.systemPrompt || '') + estimateTokens(level.userPrompt || '') + estimateTokens(input);
+  const initialImageTokens = activeImageUrl ? IMAGE_TOKEN_COST : 0;
   const tokenCount = history.reduce((sum, msg) => {
     const content = typeof msg.content === 'string' ? msg.content : '';
-    return sum + estimateTokens(content);
-  }, estimateTokens(level.systemPrompt || '') + estimateTokens(level.userPrompt || '') + estimateTokens(input));
+    const textTokens = estimateTokens(content);
+    const imageTokens = msg.imageUrl ? IMAGE_TOKEN_COST : 0;
+    return sum + textTokens + imageTokens;
+  }, baseTokens + initialImageTokens);
 
   return (
     <>
@@ -425,7 +569,7 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
         <div className={`flex flex-col md:flex-row flex-1 min-h-0 gap-4`}>
         
         {/* LEFT PANE: UNIFIED CONTEXT + INPUT */}
-        <div className={`${level.type === 'DESKTOP' ? 'md:w-1/3' : 'w-full'} flex flex-col gap-4 h-full`}>
+        <div className={`${level.type === 'DESKTOP' && showInteractiveDesktop ? 'md:w-1/3' : 'w-full'} flex flex-col gap-4 h-full`}>
             
             <div
               className="flex-1 min-h-0"
@@ -468,23 +612,30 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
                               Initializing context window...
                           </div>
                       )}
-                      {history.map((msg, idx) => (
-                        <ChatMessage
-                          key={idx}
-                          msg={msg}
-                          idx={idx}
-                          activeImageUrl={activeImageUrl}
-                          isFirstUserMessage={msg.role === 'user' && idx === history.findIndex((m) => m.role === 'user')}
-                          isVisible={idx <= animatingIndex}
-                          isAnimating={idx === animatingIndex}
-                          speedMultiplier={typewriterSpeed}
-                          onAnimationComplete={() => setAnimatingIndex(current => {
-                              // Prevent race conditions/double-firing where it might skip an index
-                              if (current === idx) return idx + 1;
-                              return current;
-                          })}
-                        />
-                      ))}
+                      {history.map((msg, idx) => {
+                        // Find the last message with a screenshot
+                        const lastScreenshotIdx = history.reduce((lastIdx, m, i) => m.imageUrl ? i : lastIdx, -1);
+
+                        return (
+                          <ChatMessage
+                            key={idx}
+                            msg={msg}
+                            idx={idx}
+                            activeImageUrl={activeImageUrl}
+                            isFirstUserMessage={msg.role === 'user' && idx === history.findIndex((m) => m.role === 'user')}
+                            isVisible={idx <= animatingIndex}
+                            isAnimating={idx === animatingIndex}
+                            speedMultiplier={typewriterSpeed}
+                            isLastScreenshot={msg.imageUrl !== undefined && idx === lastScreenshotIdx}
+                            onCheatClick={() => setShowInteractiveDesktop(true)}
+                            onAnimationComplete={() => setAnimatingIndex(current => {
+                                // Prevent race conditions/double-firing where it might skip an index
+                                if (current === idx) return idx + 1;
+                                return current;
+                            })}
+                          />
+                        );
+                      })}
 
                       {/* Status Indicator */}
                       {status === 'THINKING' && animatingIndex >= history.length && (
@@ -515,13 +666,20 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
             </div>
         </div>
 
-        {/* RIGHT PANE: DESKTOP ENVIRONMENT (Only for Desktop Levels) */}
-        {level.type === 'DESKTOP' && (
-            <div className="md:w-2/3 h-full flex flex-col">
+        {/* RIGHT PANE: DESKTOP ENVIRONMENT (Only for Desktop Levels when interactive mode is on) */}
+        {level.type === 'DESKTOP' && showInteractiveDesktop && (
+            <div className="md:w-2/3 h-full flex flex-col relative">
+                 {/* Close button to exit cheat mode */}
+                 <button
+                    onClick={() => setShowInteractiveDesktop(false)}
+                    className="absolute top-2 right-2 z-50 px-2 py-1 bg-black/80 hover:bg-red-900 text-terminal-green hover:text-white text-xs font-mono border border-terminal-green/50 hover:border-red-500 rounded cursor-pointer transition-all"
+                 >
+                    [CLOSE CHEAT]
+                 </button>
                  <Terminal title="REMOTE_DESKTOP_CONNECTION [VNC: 5900]" className="flex-1 h-full bg-zinc-900 border-l border-zinc-800">
                     <div className="w-full h-full relative flex items-center justify-center bg-zinc-900">
-                        <DesktopEnvironment history={history} />
-                        
+                        <DesktopEnvironment ref={desktopRef} history={history} />
+
                         {/* Desktop-specific log overlay */}
                         <div className="absolute top-4 right-4 bg-black/80 p-2 rounded border border-white/10 text-[10px] font-mono text-zinc-400 pointer-events-none">
                             STATUS: CONNECTED<br/>
@@ -530,6 +688,24 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
                     </div>
                  </Terminal>
             </div>
+        )}
+
+        {/* Hidden desktop for screenshot capture - rendered via Portal to isolate from layout */}
+        {level.type === 'DESKTOP' && !showInteractiveDesktop && createPortal(
+            <div style={{
+                position: 'fixed',
+                left: 0,
+                top: 0,
+                width: 1024,
+                height: 768,
+                overflow: 'hidden',
+                opacity: 0,
+                pointerEvents: 'none',
+                zIndex: -50
+            }}>
+                <DesktopEnvironment ref={desktopRef} history={history} forceScale={1} />
+            </div>,
+            document.body
         )}
 
         {/* RIGHT PANE: WEBVM (Level 4) */}

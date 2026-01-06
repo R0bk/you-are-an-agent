@@ -164,7 +164,7 @@ export const LevelCompleteOverlay: React.FC<LevelCompleteOverlayProps> = ({
 
   return (
     <div
-      className="absolute inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center animate-in fade-in duration-300"
+      className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center animate-in fade-in duration-300"
       onMouseDown={skip}
       role="dialog"
       aria-modal="true"

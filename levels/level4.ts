@@ -48,7 +48,12 @@ export const level4: Level = {
              if (!match) return { status: 'FAIL', message: "SyntaxError: write_file('path', 'content')", failType: 'TOOL_ERROR' };
              
              const path = match[1];
-             const content = match[2];
+             // Interpret common escape sequences in the content
+             const content = match[2]
+                .replace(/\\n/g, '\n')
+                .replace(/\\t/g, '\t')
+                .replace(/\\r/g, '\r')
+                .replace(/\\\\/g, '\\');
 
              try {
                 await webvmService.writeFile(path, content);

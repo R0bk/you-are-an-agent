@@ -1,9 +1,17 @@
 import React, { useEffect, useRef } from 'react';
 import { LocaleType, IWorkbookData, mergeLocales } from '@univerjs/core';
-import { createUniver } from '@univerjs/presets';
+import { createUniver, FUniver } from '@univerjs/presets';
 import { UniverSheetsCorePreset } from '@univerjs/preset-sheets-core';
 import UniverPresetSheetsCoreEnUS from '@univerjs/preset-sheets-core/lib/locales/en-US';
 import '@univerjs/preset-sheets-core/lib/index.css';
+
+// Expose univerAPI globally for the game's type() function to use
+// This is necessary because UniverJS doesn't respond to synthetic keyboard events
+declare global {
+  interface Window {
+    __univerAPI?: FUniver;
+  }
+}
 
 // Expense report data - missing the "Office Supplies" row that should be in the total
 const EXPENSE_REPORT_DATA: IWorkbookData = {
@@ -116,7 +124,11 @@ export const SpreadsheetWindow: React.FC<SpreadsheetWindowProps> = ({ className,
     // Create workbook with expense data
     univerAPI.createWorkbook(EXPENSE_REPORT_DATA);
 
+    // Expose globally for the game's type() function
+    window.__univerAPI = univerAPI;
+
     return () => {
+      window.__univerAPI = undefined;
       univerAPI.dispose();
     };
   }, []);

@@ -17,6 +17,7 @@ export interface Message {
   role: 'system' | 'developer' | 'user' | 'assistant' | 'tool';
   content: string;
   isError?: boolean; // New: to style tool errors differently
+  imageUrl?: string; // Screenshot data URL for desktop captures
 }
 
 export interface ValidationResult {
