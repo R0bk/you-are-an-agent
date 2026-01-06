@@ -20,7 +20,7 @@ const REALISTIC_TOOLS = [
 
 export const level2: Level = {
     id: 2,
-    title: "Tool User",
+    title: "Tool Use",
     description: "You don't know everything. You must use your tools to find the truth.",
     systemPrompt: "You are a knowledgeable assistant. If you do not know a fact, you MUST use the provided tool. Do not hallucinate.",
     userPrompt: "Who won the 1998 FIFA World Cup and what was the score?",

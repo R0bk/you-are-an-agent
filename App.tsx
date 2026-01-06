@@ -5,7 +5,6 @@ import { DevTools } from './components/DevTools';
 import { SimulationView } from './components/SimulationView';
 import { ManifestoView } from './components/ManifestoView';
 import { Terminal } from './components/Terminal';
-import { Typewriter } from './components/Typewriter';
 import { CRTEffectOverlay } from './components/CRTEffectOverlay';
 import { CRTEffectOverlayWebGL } from './components/CRTEffectOverlayWebGL.tsx';
 import { TitleCardOverlay } from './components/TitleCardOverlay';
@@ -33,13 +32,14 @@ export default function App() {
     maxDpr: 1,
     targetFps: 15 as const,
     animate: false,
-    // Old CRT-ish defaults (ported from previous implementation)
-    distortion: 0.02,
+
+    // Master warp control (0-1) - controls all barrel distortion effects
+    warp: 0.65,
+
     scanlineStrength: 0.08,
     maskStrength: 1.0,
-    curvature: 0,
 
-    // Old “real CRT” controls (now approximated inside the overlay pipeline)
+    // Old "real CRT" controls (now approximated inside the overlay pipeline)
     dotPitch: 1.59,
     dotScale: 0.93,
     falloff: 0.12,
@@ -57,12 +57,11 @@ export default function App() {
     blendMode: 'hdr' as const,
     outputGamma: 2.2,
 
-    // Apply CRT “to the content” via CSS postprocess (approximation).
+    // Apply CRT "to the content" via CSS postprocess (approximation).
     applyToContent: true,
     // Expensive: enables CSS `filter:` (blur/fringe/contrast/sat/brightness) over the entire app subtree.
     // Keep this off by default; the shell warp/vignette/scanlines are much cheaper.
     contentFilters: false,
-    contentWarp: 0.25, // 0..1 (DOM transform curvature-ish)
     contentAberration: 0.8, // px
     contentBlur: 0.3, // px
     contentContrast: 1.05,
@@ -70,10 +69,16 @@ export default function App() {
     contentBright: 1.03,
     contentVignette: 0.28, // 0..1
     contentScanlines: 0.18, // 0..1
-
-    // Experimental: true per-pixel 2D warp via SVG filter (can be expensive / browser-dependent).
-    uiWarp2d: 25, // 0..100 (SVG displacement scale)
   });
+
+  // Derive all warp-related values from the master warp slider
+  // Scaled to match the visual intensity of SVG displacement
+  const warpDerived = useMemo(() => ({
+    distortion: crtWebgl.warp * 0.25,     // WebGL barrel distortion (0-0.25 at warp=1)
+    curvature: 0,                          // Not used when uiWarp2d > 0 (they're mutually exclusive)
+    contentWarp: crtWebgl.warp * 1.5,     // DOM transform warp (0-1.5)
+    uiWarp2d: crtWebgl.warp * 75,         // SVG displacement pixels (0-75)
+  }), [crtWebgl.warp]);
 
   const activeLevel: Level | null = useMemo(() => {
     if (gameState === GameState.PLAYING) return LEVELS[currentLevelIndex] ?? null;
@@ -165,9 +170,6 @@ export default function App() {
                 <h1 className="text-4xl md:text-6xl font-black font-mono text-white tracking-tighter">
                     youare<span className="text-terminal-green">anagent</span>.app
                 </h1>
-                <p className="text-terminal-text font-mono opacity-60">
-                    <Typewriter text="> Initializing Agent Experience (AX) Simulator..." speed={30} />
-                </p>
               </div>
 
               <Terminal title="MISSION_BRIEFING" className="bg-zinc-900/80 backdrop-blur">
@@ -200,15 +202,15 @@ export default function App() {
 
       if (gameState === GameState.PLAYING) {
         return (
-          <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+          <div className="min-h-screen flex items-center justify-center">
             <SimulationView
                 key={`${currentLevelIndex}-${isRealisticMode}`} // Force re-render on level OR mode change
                 level={LEVELS[currentLevelIndex]}
                 onSuccess={handleLevelSuccess}
                 isRealisticMode={isRealisticMode}
                 setIsRealisticMode={setIsRealisticMode}
-                crtUiCurvature={crtMode === 'webgl' ? crtWebgl.curvature : 0}
-                crtUiWarp2d={crtMode === 'webgl' ? crtWebgl.uiWarp2d : 0}
+                crtUiCurvature={crtMode === 'webgl' ? warpDerived.curvature : 0}
+                crtUiWarp2d={crtMode === 'webgl' ? warpDerived.uiWarp2d : 0}
                 typewriterSpeed={typewriterSpeed}
             />
           </div>
@@ -221,15 +223,15 @@ export default function App() {
 
       if (gameState === GameState.PLAYING_ADVANCED) {
         return (
-            <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+            <div className="min-h-screen flex items-center justify-center">
                 <SimulationView
                     key={`${currentLevelIndex}-${isRealisticMode}`} // Force re-render on level OR mode change
                     level={ADVANCED_LEVELS[currentLevelIndex]}
                     onSuccess={handleLevelSuccess}
                     isRealisticMode={isRealisticMode}
                     setIsRealisticMode={setIsRealisticMode}
-                    crtUiCurvature={crtMode === 'webgl' ? crtWebgl.curvature : 0}
-                    crtUiWarp2d={crtMode === 'webgl' ? crtWebgl.uiWarp2d : 0}
+                    crtUiCurvature={crtMode === 'webgl' ? warpDerived.curvature : 0}
+                    crtUiWarp2d={crtMode === 'webgl' ? warpDerived.uiWarp2d : 0}
                     typewriterSpeed={typewriterSpeed}
                 />
             </div>
@@ -282,7 +284,7 @@ export default function App() {
 
   return (
     <>
-        <CRTDisplacementMapDefs id="crtWarp2d" scale={crtWebgl.uiWarp2d} />
+        <CRTDisplacementMapDefs id="crtWarp2d" scale={warpDerived.uiWarp2d} />
 
         {/* Global CRT overlay.
             Keep it mounted; when a title card is up, render CRT ABOVE it so titles use the same CRT pipeline. */}
@@ -300,7 +302,7 @@ export default function App() {
                 maxDpr={crtWebgl.maxDpr}
                 targetFps={crtWebgl.targetFps}
                 animate={crtWebgl.animate}
-                distortion={crtWebgl.distortion}
+                distortion={warpDerived.distortion}
                 scanlineStrength={crtWebgl.scanlineStrength}
                 maskStrength={crtWebgl.maskStrength}
                 dotPitch={crtWebgl.dotPitch}
@@ -355,7 +357,7 @@ export default function App() {
                         ['--crt-bright' as any]: crtWebgl.contentBright,
                       }
                     : null),
-                  ['--crt-warp' as any]: crtWebgl.contentWarp,
+                  ['--crt-warp' as any]: warpDerived.contentWarp,
                   ['--crt-vig' as any]: crtWebgl.contentVignette,
                   ['--crt-scan' as any]: crtWebgl.contentScanlines,
                 } as React.CSSProperties)

@@ -136,16 +136,22 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                             alt="Desktop screenshot"
                             className="rounded border border-zinc-700 w-full h-auto"
                         />
-                        {/* Cheat button on the last screenshot */}
+                        {/* Popout button on the last screenshot */}
                         {isLastScreenshot && onCheatClick && (
                             <button
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     onCheatClick();
                                 }}
-                                className="absolute top-2 right-2 px-2 py-1 bg-black/80 hover:bg-black text-terminal-green text-xs font-mono border border-terminal-green/50 hover:border-terminal-green rounded cursor-pointer transition-all"
+                                className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center bg-black/80 hover:bg-black text-terminal-green text-xs font-mono border border-terminal-green/50 hover:border-terminal-green rounded cursor-pointer transition-all"
+                                title="Open Desktop"
                             >
-                                [CHEAT]
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <polyline points="15 3 21 3 21 9"></polyline>
+                                  <polyline points="9 21 3 21 3 15"></polyline>
+                                  <line x1="21" y1="3" x2="14" y2="10"></line>
+                                  <line x1="3" y1="21" x2="10" y2="14"></line>
+                                </svg>
                             </button>
                         )}
                     </div>

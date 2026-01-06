@@ -3,7 +3,7 @@ import { GoogleGenAI } from "@google/genai";
 
 export const level1: Level = {
     id: 1,
-    title: "The Human Facade",
+    title: "The Tutorial",
     description: "You are an LLM. The user wants a simple task done. Maintain the helpful assistant persona.",
     systemPrompt: "You are a helpful AI assistant. Answer the user's request concisely and professionally.",
     userPrompt: "Draft a subject line for a cold email to a potential investor for my AI startup.",

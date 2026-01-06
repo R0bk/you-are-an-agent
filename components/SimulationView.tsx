@@ -58,6 +58,9 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
   // For DESKTOP levels: toggle between screenshot-only and interactive mode
   const [showInteractiveDesktop, setShowInteractiveDesktop] = useState(false);
 
+  // For WEBVM levels: toggle console visibility
+  const [showWebVMConsole, setShowWebVMConsole] = useState(false);
+
   // Track if we've captured the initial screenshot for DESKTOP levels
   const [hasInitialScreenshot, setHasInitialScreenshot] = useState(false);
 
@@ -206,33 +209,6 @@ if __name__ == "__main__":
           { role: 'tool', content: 'Screenshot captured.', imageUrl: screenshotUrl }
         ]);
       }
-
-      // DEV: Add predone commands for testing
-      // 1. mouse_move(30, 150)
-      setHistory(prev => [
-        ...prev,
-        { role: 'assistant', content: 'mouse_move(30, 150)' },
-        { role: 'tool', content: 'Cursor moved to (30, 150).' }
-      ]);
-      await new Promise(r => setTimeout(r, 300));
-
-      // 2. double_click()
-      await new Promise(r => setTimeout(r, 300));
-      const screenshot2 = await desktopRef.current?.captureScreenshot();
-      setHistory(prev => [
-        ...prev,
-        { role: 'assistant', content: 'double_click()' },
-        { role: 'tool', content: 'Application \'Microsoft Excel\' launched.', imageUrl: screenshot2 || undefined }
-      ]);
-
-      // 3. mouse_move(680, 325)
-      await new Promise(r => setTimeout(r, 500));
-      const screenshot3 = await desktopRef.current?.captureScreenshot();
-      setHistory(prev => [
-        ...prev,
-        { role: 'assistant', content: 'mouse_move(680, 325)' },
-        { role: 'tool', content: 'Cursor moved to (680, 325).', imageUrl: screenshot3 || undefined }
-      ]);
 
       setHasInitialScreenshot(true);
     };
@@ -569,7 +545,7 @@ if __name__ == "__main__":
         <div className={`flex flex-col md:flex-row flex-1 min-h-0 gap-4`}>
         
         {/* LEFT PANE: UNIFIED CONTEXT + INPUT */}
-        <div className={`${level.type === 'DESKTOP' && showInteractiveDesktop ? 'md:w-1/3' : 'w-full'} flex flex-col gap-4 h-full`}>
+        <div className={`${(level.type === 'DESKTOP' && showInteractiveDesktop) || (level.id === 4 && showWebVMConsole) ? 'md:w-1/3' : 'w-full'} flex flex-col gap-4 h-full`}>
             
             <div
               className="flex-1 min-h-0"
@@ -606,7 +582,22 @@ if __name__ == "__main__":
                ) : (
                  <>
                    {/* HISTORY AREA */}
-                   <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 pt-2">
+                   <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 pt-2 relative">
+                      {/* Floating popout button for Level 4 WebVM */}
+                      {level.id === 4 && useWebVM && !showWebVMConsole && !isBooting && (
+                        <button
+                          onClick={() => setShowWebVMConsole(true)}
+                          className="absolute top-2 right-2 z-10 w-6 h-6 flex items-center justify-center bg-black/80 hover:bg-black text-terminal-green text-xs font-mono border border-terminal-green/50 hover:border-terminal-green rounded cursor-pointer transition-all"
+                          title="Show Console"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="15 3 21 3 21 9"></polyline>
+                            <polyline points="9 21 3 21 3 15"></polyline>
+                            <line x1="21" y1="3" x2="14" y2="10"></line>
+                            <line x1="3" y1="21" x2="10" y2="14"></line>
+                          </svg>
+                        </button>
+                      )}
                       {history.length === 0 && (
                           <div className="text-zinc-600 italic text-center mt-10">
                               Initializing context window...
@@ -669,12 +660,18 @@ if __name__ == "__main__":
         {/* RIGHT PANE: DESKTOP ENVIRONMENT (Only for Desktop Levels when interactive mode is on) */}
         {level.type === 'DESKTOP' && showInteractiveDesktop && (
             <div className="md:w-2/3 h-full flex flex-col relative">
-                 {/* Close button to exit cheat mode */}
+                 {/* Close button to hide desktop */}
                  <button
                     onClick={() => setShowInteractiveDesktop(false)}
-                    className="absolute top-2 right-2 z-50 px-2 py-1 bg-black/80 hover:bg-red-900 text-terminal-green hover:text-white text-xs font-mono border border-terminal-green/50 hover:border-red-500 rounded cursor-pointer transition-all"
+                    className="absolute top-2 right-2 z-50 w-6 h-6 flex items-center justify-center bg-black/80 hover:bg-red-900 text-terminal-green hover:text-white text-xs font-mono border border-terminal-green/50 hover:border-red-500 rounded cursor-pointer transition-all"
+                    title="Hide Desktop"
                  >
-                    [CLOSE CHEAT]
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="4 14 10 14 10 20"></polyline>
+                      <polyline points="20 10 14 10 14 4"></polyline>
+                      <line x1="14" y1="10" x2="21" y2="3"></line>
+                      <line x1="3" y1="21" x2="10" y2="14"></line>
+                    </svg>
                  </button>
                  <Terminal title="REMOTE_DESKTOP_CONNECTION [VNC: 5900]" className="flex-1 h-full bg-zinc-900 border-l border-zinc-800">
                     <div className="w-full h-full relative flex items-center justify-center bg-zinc-900">
@@ -708,9 +705,22 @@ if __name__ == "__main__":
             document.body
         )}
 
-        {/* RIGHT PANE: WEBVM (Level 4) */}
+        {/* RIGHT PANE: WEBVM (Level 4) - Always mounted to preserve state, visibility toggled */}
         {level.id === 4 && useWebVM && (
-          <div className="md:w-2/3 h-full flex flex-col">
+          <div className={`md:w-2/3 h-full flex flex-col relative ${showWebVMConsole ? '' : 'hidden'}`}>
+            {/* Close button to hide console */}
+            <button
+              onClick={() => setShowWebVMConsole(false)}
+              className="absolute top-2 right-2 z-50 w-6 h-6 flex items-center justify-center bg-black/80 hover:bg-red-900 text-terminal-green hover:text-white text-xs font-mono border border-terminal-green/50 hover:border-red-500 rounded cursor-pointer transition-all"
+              title="Hide Console"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="4 14 10 14 10 20"></polyline>
+                <polyline points="20 10 14 10 14 4"></polyline>
+                <line x1="14" y1="10" x2="21" y2="3"></line>
+                <line x1="3" y1="21" x2="10" y2="14"></line>
+              </svg>
+            </button>
             <Terminal title="WEBVM // Linux + Python" className="flex-1 h-full bg-zinc-900 border-l border-zinc-800">
               <div className="w-full h-full relative bg-black">
                 <WebVMFrame className="absolute inset-0 w-full h-full" />
