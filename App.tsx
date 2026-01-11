@@ -5,7 +5,7 @@ import { DevTools } from './components/DevTools';
 import { SimulationView } from './components/SimulationView';
 import { ManifestoView } from './components/ManifestoView';
 import { Terminal } from './components/Terminal';
-import { CRTEffectOverlay } from './components/CRTEffectOverlay';
+// import { CRTEffectOverlay } from './components/CRTEffectOverlay';
 import { CRTEffectOverlayWebGL } from './components/CRTEffectOverlayWebGL.tsx';
 import { TitleCardOverlay } from './components/TitleCardOverlay';
 import { OscilloscopeTitleCardWebGL } from './components/OscilloscopeTitleCardWebGL';
@@ -320,9 +320,7 @@ export default function App() {
                 blendMode={crtWebgl.blendMode}
                 outputGamma={crtWebgl.outputGamma}
               />
-            ) : (
-              <CRTEffectOverlay />
-            )}
+            ) : null}
           </div>
         )}
         <DevTools

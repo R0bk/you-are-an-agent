@@ -199,6 +199,7 @@ export const CRTEffectOverlayWebGL: React.FC<CRTEffectOverlayWebGLProps> = ({
       intensity,
       pattern,
       maxDpr,
+      targetFps,
       distortion,
       scanlineStrength,
       maskStrength,
@@ -222,6 +223,7 @@ export const CRTEffectOverlayWebGL: React.FC<CRTEffectOverlayWebGLProps> = ({
     intensity,
     pattern,
     maxDpr,
+    targetFps,
     distortion,
     scanlineStrength,
     maskStrength,
@@ -246,7 +248,8 @@ export const CRTEffectOverlayWebGL: React.FC<CRTEffectOverlayWebGLProps> = ({
     if (!canvas) return;
     // IMPORTANT: We output non-premultiplied RGB in the shader (and optionally premultiply explicitly).
     // Using premultipliedAlpha=true here can cause visible blending artifacts depending on browser.
-    const gl = canvas.getContext('webgl', { alpha: true, antialias: true, premultipliedAlpha: false });
+    const gl = canvas.getContext('webgl2', { alpha: true, antialias: true, premultipliedAlpha: false })
+         || canvas.getContext('webgl', { alpha: true, antialias: true, premultipliedAlpha: false });
     if (!gl) return;
 
     const vs = `
@@ -288,10 +291,13 @@ export const CRTEffectOverlayWebGL: React.FC<CRTEffectOverlayWebGLProps> = ({
         return fract(p.x * p.y);
       }
 
+      // Standard barrel distortion: r' = r * (1 + k*r²)
+      // Matches OscilloscopeTitleCardWebGL and CRTDisplacementMapDefs
       vec2 radialDistortion(vec2 coord) {
-        vec2 cc = coord - 0.5;
-        float dist = dot(cc, cc) * u_distortion;
-        return coord + cc * (1.0 + dist) * dist;
+        vec2 centered = coord - 0.5;
+        float r2 = dot(centered, centered);
+        float factor = 1.0 + u_distortion * r2;
+        return centered * factor + 0.5;
       }
 
       float createCircularDot(vec2 point, vec2 center) {
@@ -657,11 +663,14 @@ export const CRTEffectOverlayWebGL: React.FC<CRTEffectOverlayWebGLProps> = ({
           try {
             texBase = createTexture(gl, w, h);
             fbBase = createFramebuffer(gl, texBase);
-            texBright = createTexture(gl, w, h);
+            // Bloom buffers at HALF resolution (4x fewer pixels to process)
+            const halfW = Math.max(1, Math.floor(w / 2));
+            const halfH = Math.max(1, Math.floor(h / 2));
+            texBright = createTexture(gl, halfW, halfH);
             fbBright = createFramebuffer(gl, texBright);
-            texBlur1 = createTexture(gl, w, h);
+            texBlur1 = createTexture(gl, halfW, halfH);
             fbBlur1 = createFramebuffer(gl, texBlur1);
-            texBlur2 = createTexture(gl, w, h);
+            texBlur2 = createTexture(gl, halfW, halfH);
             fbBlur2 = createFramebuffer(gl, texBlur2);
           } catch {
             texBase = null;
@@ -678,11 +687,22 @@ export const CRTEffectOverlayWebGL: React.FC<CRTEffectOverlayWebGLProps> = ({
     };
 
     const start = performance.now();
-    const frame = () => {
+    let lastFrameTime = 0;
+
+    const frame = (now: number) => {
+      // FPS throttling - skip frame if not enough time has passed
+      const p = paramsRef.current;
+      const frameInterval = 1000 / (p.targetFps || 60);
+
+      if (now - lastFrameTime < frameInterval) {
+        rafRef.current = window.requestAnimationFrame(frame);
+        return; // Skip this frame
+      }
+      lastFrameTime = now;
+
       setSize();
 
-      const t = (performance.now() - start) / 1000;
-      const p = paramsRef.current;
+      const t = (now - start) / 1000;
       const patternNum = p.pattern === 'monitor' ? 0 : p.pattern === 'lcd' ? 1 : 2;
       const blendModeNum =
         p.blendMode === 'add'
@@ -743,8 +763,11 @@ export const CRTEffectOverlayWebGL: React.FC<CRTEffectOverlayWebGLProps> = ({
         gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
         gl.drawArrays(gl.TRIANGLES, 0, 6);
 
-        // 2) Bright pass (extract bloom source)
+        // 2) Bright pass (extract bloom source) - HALF RESOLUTION
+        const halfW = Math.max(1, Math.floor(canvas.width / 2));
+        const halfH = Math.max(1, Math.floor(canvas.height / 2));
         gl.bindFramebuffer(gl.FRAMEBUFFER, fbBright);
+        gl.viewport(0, 0, halfW, halfH);
         gl.clearColor(0, 0, 0, 0);
         gl.clear(gl.COLOR_BUFFER_BIT);
         gl.useProgram(brightProgram!);
@@ -757,8 +780,9 @@ export const CRTEffectOverlayWebGL: React.FC<CRTEffectOverlayWebGLProps> = ({
         gl.uniform1f(brightThresholdLoc, Math.max(0.0, Math.min(1.0, p.bloomThreshold)));
         gl.drawArrays(gl.TRIANGLES, 0, 6);
 
-        // 3) Blur horizontal
+        // 3) Blur horizontal - HALF RESOLUTION
         gl.bindFramebuffer(gl.FRAMEBUFFER, fbBlur1);
+        gl.viewport(0, 0, halfW, halfH);
         gl.clearColor(0, 0, 0, 0);
         gl.clear(gl.COLOR_BUFFER_BIT);
         gl.useProgram(blurProgram!);
@@ -768,18 +792,20 @@ export const CRTEffectOverlayWebGL: React.FC<CRTEffectOverlayWebGLProps> = ({
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, texBright);
         gl.uniform1i(blurTexLoc, 0);
-        gl.uniform2f(blurResLoc, canvas.width, canvas.height);
+        gl.uniform2f(blurResLoc, halfW, halfH);
         gl.uniform2f(blurDirLoc, 1, 0);
         gl.uniform1f(blurRadiusLoc, Math.max(0.0, p.bloomRadius));
         gl.drawArrays(gl.TRIANGLES, 0, 6);
 
-        // 4) Blur vertical
+        // 4) Blur vertical - HALF RESOLUTION
         gl.bindFramebuffer(gl.FRAMEBUFFER, fbBlur2);
+        gl.viewport(0, 0, halfW, halfH);
         gl.clearColor(0, 0, 0, 0);
         gl.clear(gl.COLOR_BUFFER_BIT);
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, texBlur1);
         gl.uniform1i(blurTexLoc, 0);
+        gl.uniform2f(blurResLoc, halfW, halfH);
         gl.uniform2f(blurDirLoc, 0, 1);
         gl.drawArrays(gl.TRIANGLES, 0, 6);
 
@@ -819,7 +845,7 @@ export const CRTEffectOverlayWebGL: React.FC<CRTEffectOverlayWebGLProps> = ({
       rafRef.current = window.requestAnimationFrame(frame);
     };
 
-    frame();
+    rafRef.current = window.requestAnimationFrame(frame);
     window.addEventListener('resize', setSize);
 
     return () => {

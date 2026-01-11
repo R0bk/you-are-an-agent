@@ -70,7 +70,7 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
   useEffect(() => {
     // Check if this level needs a boot sequence
     const initLevel = async () => {
-        if (level.id === 4) { // Level 4 uses WebVM
+        if (level.id === 5) { // Level 5 uses WebVM
             setIsBooting(true);
             setUseWebVM(true);
             try {
@@ -121,7 +121,7 @@ if __name__ == "__main__":
                 await webvmService.executeShell('mkdir -p src');
                 await webvmService.writeFile('src/billing.py', billingPy);
                 await webvmService.writeFile('run_tests.py', runTestsPy);
-                console.log("Level 4 project files initialized");
+                console.log("Level 5 project files initialized");
             } catch (e) {
                 console.error("WebVM boot failed", e);
             }
@@ -149,11 +149,32 @@ if __name__ == "__main__":
         // In this simulator, we keep tool definitions out of the SYSTEM prompt to mimic real API structures.
         let developerContent: string | null = null;
         if (!level.hideToolsInSystemPrompt) {
-          if (isRealisticMode && level.realisticTools) {
-            const requestedFormat = level.realisticToolsFormat ?? 'PLAIN_JSON';
-            const shouldUseMcpWrapper = level.id === 7 && requestedFormat === 'MCP';
+          // Level 4 (MCP): Always show MCP servers section
+          if (level.id === 4 && level.realisticTools) {
+            const mcpData = level.realisticTools as any;
+            developerContent = `<mcp_servers>\n${mcpData.mcp_servers.description}\n\nConnected servers:\n`;
+            for (const server of mcpData.mcp_servers.connected_servers) {
+              developerContent += `- Name: "${server.name}"\n  URL: "${server.url}"\n`;
+            }
+            developerContent += `</mcp_servers>\n\n`;
 
-            if (shouldUseMcpWrapper) {
+            if (isRealisticMode) {
+              // Realistic: Full JSON schema
+              developerContent += `<available_functions>\n`;
+              developerContent += JSON.stringify(mcpData.available_functions, null, 2);
+              developerContent += `\n</available_functions>`;
+            } else {
+              // Easy: Simple format
+              developerContent += `<available_functions>\n`;
+              const simpleFns = mcpData.simple_functions || ['mcp_tool_use(server_name, tool_name, arguments?)'];
+              developerContent += simpleFns.map((fn: string) => `- ${fn}`).join('\n');
+              developerContent += `\n</available_functions>`;
+            }
+          } else if (isRealisticMode && level.realisticTools) {
+            const requestedFormat = level.realisticToolsFormat ?? 'PLAIN_JSON';
+            const isMcpFormat = requestedFormat === 'MCP';
+
+            if (isMcpFormat) {
               developerContent = `<mcp_servers>\nConnected servers:\n- Name: "simulation-mcp"\n  URL: "https://mcp.simulation.app/sse"\n</mcp_servers>`;
               developerContent += `\n\n<mcp_tool_definitions server="simulation-mcp">\n`;
               developerContent += JSON.stringify(level.realisticTools, null, 2);
@@ -219,7 +240,7 @@ if __name__ == "__main__":
   // Handle Boot Completion
   const handleBootComplete = () => {
       setIsBooting(false);
-      if (level.id === 4 && inputRef.current) {
+      if (level.id === 5 && inputRef.current) {
           inputRef.current.focus();
       }
   };
@@ -545,7 +566,7 @@ if __name__ == "__main__":
         <div className={`flex flex-col md:flex-row flex-1 min-h-0 gap-4`}>
         
         {/* LEFT PANE: UNIFIED CONTEXT + INPUT */}
-        <div className={`${(level.type === 'DESKTOP' && showInteractiveDesktop) || (level.id === 4 && showWebVMConsole) ? 'md:w-1/3' : 'w-full'} flex flex-col gap-4 h-full`}>
+        <div className={`${(level.type === 'DESKTOP' && showInteractiveDesktop) || (level.id === 5 && showWebVMConsole) ? 'md:w-1/3' : 'w-full'} flex flex-col gap-4 h-full`}>
             
             <div
               className="flex-1 min-h-0"
@@ -583,8 +604,8 @@ if __name__ == "__main__":
                  <>
                    {/* HISTORY AREA */}
                    <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 pt-2 relative">
-                      {/* Floating popout button for Level 4 WebVM */}
-                      {level.id === 4 && useWebVM && !showWebVMConsole && !isBooting && (
+                      {/* Floating popout button for Level 5 WebVM */}
+                      {level.id === 5 && useWebVM && !showWebVMConsole && !isBooting && (
                         <button
                           onClick={() => setShowWebVMConsole(true)}
                           className="absolute top-2 right-2 z-10 w-6 h-6 flex items-center justify-center bg-black/80 hover:bg-black text-terminal-green text-xs font-mono border border-terminal-green/50 hover:border-terminal-green rounded cursor-pointer transition-all"
@@ -676,12 +697,6 @@ if __name__ == "__main__":
                  <Terminal title="REMOTE_DESKTOP_CONNECTION [VNC: 5900]" className="flex-1 h-full bg-zinc-900 border-l border-zinc-800">
                     <div className="w-full h-full relative flex items-center justify-center bg-zinc-900">
                         <DesktopEnvironment ref={desktopRef} history={history} />
-
-                        {/* Desktop-specific log overlay */}
-                        <div className="absolute top-4 right-4 bg-black/80 p-2 rounded border border-white/10 text-[10px] font-mono text-zinc-400 pointer-events-none">
-                            STATUS: CONNECTED<br/>
-                            LATENCY: 24ms
-                        </div>
                     </div>
                  </Terminal>
             </div>
@@ -705,8 +720,8 @@ if __name__ == "__main__":
             document.body
         )}
 
-        {/* RIGHT PANE: WEBVM (Level 4) - Always mounted to preserve state, visibility toggled */}
-        {level.id === 4 && useWebVM && (
+        {/* RIGHT PANE: WEBVM (Level 5) - Always mounted to preserve state, visibility toggled */}
+        {level.id === 5 && useWebVM && (
           <div className={`md:w-2/3 h-full flex flex-col relative ${showWebVMConsole ? '' : 'hidden'}`}>
             {/* Close button to hide console */}
             <button

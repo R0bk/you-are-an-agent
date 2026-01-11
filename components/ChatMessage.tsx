@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { Message } from '../types';
 import { Image as ImageIcon } from 'lucide-react';
 import { AdvancedSequentialTypewriter, TypewriterSegment } from './AdvancedSequentialTypewriter';
+import { formatToolOutput } from '../utils/formatToolOutput';
 
 function splitSystemContentForToolsHighlight(content: string): { main: string; toolsTail?: string } {
   const markers = ['\n\n### AVAILABLE_TOOLS\n', '\n\n### TOOL_DEFINITIONS\n', '\n\n<mcp_servers>', '\n\n<mcp_tool_definitions'];
@@ -97,11 +98,8 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
           if (activeImageUrl && isFirstUserMessage) { // Only on first user msg
                s.push({
                    node: (
-                     <div className="my-2 w-48 h-32 rounded overflow-hidden border border-zinc-700 relative group animate-in zoom-in-95 duration-300">
+                     <div className="my-3 w-80 h-60 md:w-[28rem] md:h-80 rounded-lg overflow-hidden border border-zinc-700 relative group animate-in zoom-in-95 duration-300">
                         <img src={activeImageUrl} className="object-cover w-full h-full" alt="User attachment" />
-                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                            <ImageIcon size={16} className="text-white"/>
-                        </div>
                      </div>
                    )
                });
@@ -124,7 +122,43 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
 
           addTag("tool", roleColor);
           addHeaderEnd(channelName);
-          s.push({ text: msg.content, className: contentColor });
+
+          // Smart format JSON with embedded markdown for readability
+          if (!isError) {
+              const sections = formatToolOutput(msg.content);
+              for (const section of sections) {
+                  switch (section.type) {
+                      case 'header':
+                          if (section.label) {
+                              s.push({ text: `[${section.label}]\n`, className: "text-cyan-400 font-semibold" });
+                          }
+                          s.push({ text: `${section.content}\n`, className: "text-white font-semibold" });
+                          break;
+                      case 'metadata':
+                          s.push({ text: `  ${section.content}\n`, className: "text-zinc-400 text-sm" });
+                          break;
+                      case 'divider':
+                          s.push({ text: `${'─'.repeat(50)}\n`, className: "text-zinc-600" });
+                          break;
+                      case 'markdown':
+                          // Render markdown content with better formatting
+                          s.push({ text: `${section.content}\n`, className: "text-zinc-200" });
+                          break;
+                      case 'list':
+                          s.push({ text: `${section.content}\n`, className: "text-terminal-yellow/90" });
+                          break;
+                      case 'text':
+                          s.push({ text: `${section.content}\n`, className: "text-terminal-green" });
+                          break;
+                      case 'json':
+                      default:
+                          s.push({ text: section.content, className: contentColor });
+                          break;
+                  }
+              }
+          } else {
+              s.push({ text: msg.content, className: contentColor });
+          }
 
           // Add screenshot image if present
           if (msg.imageUrl) {
