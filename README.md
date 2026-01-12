@@ -1,5 +1,7 @@
 # You Are An Agent
 
+![You Are An Agent](youareanagent.png)
+
 A game to build empathy for AI agents by experiencing their constraints firsthand.
 
 **Play it:** [youareanagent.app](https://youareanagent.app)
