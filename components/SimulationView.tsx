@@ -45,6 +45,7 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
   const [useWebVM, setUseWebVM] = useState(false);
   const [isLevelIntroAnimating, setIsLevelIntroAnimating] = useState(true);
   const [introCanvasText, setIntroCanvasText] = useState<string | undefined>(undefined);
+  const [introBoxWidth, setIntroBoxWidth] = useState<number | undefined>(undefined);
   
   // Controls sequential streaming of messages
   // Index of the message currently animating. Messages < index are fully shown. Messages > index are hidden.
@@ -137,6 +138,7 @@ if __name__ == "__main__":
         setAnimatingIndex(0);
         setIsLevelIntroAnimating(true);
         setIntroCanvasText(undefined);
+        setIntroBoxWidth(undefined);
 
         // --- CONSTRUCT INITIAL CONTEXT WINDOW ---
         const initialMessages: Message[] = [];
@@ -420,7 +422,7 @@ if __name__ == "__main__":
     <>
     {isBooting && <BootSequence onComplete={handleBootComplete} />}
     
-    <div className="w-full max-w-7xl mx-auto p-2 md:px-4 md:pt-2 md:pb-4 lg:py-16 flex flex-col gap-4 h-screen max-h-[calc(100vh)] overflow-scroll relative">
+    <div className="w-full max-w-7xl mx-auto p-2 md:px-4 md:pt-2 md:pb-4 lg:py-16 flex flex-col gap-4 h-screen max-h-[calc(100vh)] overflow-y-auto overflow-x-hidden relative">
       
       {/* SUCCESS OVERLAY */}
       <LevelCompleteOverlay
@@ -589,8 +591,9 @@ if __name__ == "__main__":
                      developerContent={history.find((m) => m.role === 'developer')?.content}
                      userContent={history.find((m) => m.role === 'user')?.content ?? ''}
                      speedMultiplier={typewriterSpeed}
-                     onComplete={(finalCanvasText) => {
+                     onComplete={(finalCanvasText, boxWidth) => {
                        setIntroCanvasText(finalCanvasText);
+                       setIntroBoxWidth(boxWidth);
                        setIsLevelIntroAnimating(false);
                        setAnimatingIndex(history.length); // show initial context fully
                      }}
@@ -661,6 +664,7 @@ if __name__ == "__main__":
                    {/* INPUT AREA (ASCII prompt box, but real input controls overlaid) */}
                    <TerminalPromptBoxInput
                      canvasText={introCanvasText}
+                     canvasBoxWidth={introBoxWidth}
                      value={input}
                      onChange={setInput}
                      onSubmit={handleSubmit}

@@ -1,9 +1,12 @@
 export type Canvas = string[];
 
 export const TERMINAL_PROMPT_LAYOUT = {
-  // Box size (including borders)
+  // Box size (including borders) - this is the MAX width
   boxWidth: 78,
   boxHeight: 8, // taller to fit a 3-line button inside the box
+
+  // Minimum box width (must fit the button + some text space)
+  minBoxWidth: 20,
 
   // Canvas size (lines rendered in <pre>)
   canvasWidth: 96,
@@ -105,18 +108,27 @@ export function buildPromptOutlineOps(
   return { ops, w, h };
 }
 
-export function buildFinalPromptCanvasText() {
+/**
+ * Build the prompt box canvas text with a given width.
+ * @param boxWidth - The width of the box in characters. Defaults to TERMINAL_PROMPT_LAYOUT.boxWidth.
+ */
+export function buildFinalPromptCanvasText(boxWidth?: number) {
   const cfg = TERMINAL_PROMPT_LAYOUT;
-  const { ops: outlineOps, h } = buildPromptOutlineOps(cfg.boxWidth, cfg.boxHeight);
+  const effectiveBoxWidth = Math.max(
+    cfg.minBoxWidth,
+    Math.min(boxWidth ?? cfg.boxWidth, cfg.boxWidth)
+  );
+  const { ops: outlineOps, h } = buildPromptOutlineOps(effectiveBoxWidth, cfg.boxHeight);
 
-  let canvas = makeBlankCanvas(cfg.canvasWidth, cfg.canvasHeight);
+  // Canvas width matches the box width (no extra space needed)
+  let canvas = makeBlankCanvas(effectiveBoxWidth, cfg.canvasHeight);
 
   // Draw outline
   for (const o of outlineOps) canvas = setCanvasChar(canvas, o.x, o.y, o.ch);
 
-  // Draw 3-line unicode “button” inside the box (bottom-right).
+  // Draw 3-line unicode "button" inside the box (bottom-right).
   const btn = buildGenerateButtonLines(cfg.generateLabel, cfg.generateIcon);
-  const buttonX = computeGenerateButtonStartX(cfg.boxWidth, btn.width);
+  const buttonX = computeGenerateButtonStartX(effectiveBoxWidth, btn.width);
   const bottomInnerY = h - 2; // last inner row
   const topY = bottomInnerY - (btn.height - 1);
   for (let row = 0; row < btn.lines.length; row++) {
@@ -126,7 +138,7 @@ export function buildFinalPromptCanvasText() {
     }
   }
 
-  return canvas.join('\n');
+  return { canvasText: canvas.join('\n'), boxWidth: effectiveBoxWidth };
 }
 
 

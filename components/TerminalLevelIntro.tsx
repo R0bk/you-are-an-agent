@@ -8,6 +8,7 @@ import {
   buildGenerateButtonLines,
   computeGenerateButtonStartX,
 } from './terminalPromptLayout';
+import { useDynamicBoxWidth } from './useDynamicBoxWidth';
 
 function splitSystemContentForToolsHighlight(content: string): { main: string; toolsTail?: string } {
   const markers = ['\n\n### AVAILABLE_TOOLS\n', '\n\n### TOOL_DEFINITIONS\n', '\n\n<mcp_servers>', '\n\n<mcp_tool_definitions'];
@@ -27,7 +28,7 @@ interface TerminalLevelIntroProps {
   systemContent: string;
   developerContent?: string;
   userContent: string;
-  onComplete: (finalCanvasText: string) => void;
+  onComplete: (finalCanvasText: string, boxWidth: number) => void;
   speedMultiplier?: number;
 }
 
@@ -39,6 +40,7 @@ function computeCanvasDelayMs(ch: string, kind: 'corner' | 'edge') {
   if (/[.,!?;:]/.test(ch)) d += 85;
   return Math.min(d, 220);
 }
+
 
 export const TerminalLevelIntro: React.FC<TerminalLevelIntroProps> = ({
   levelId,
@@ -55,20 +57,23 @@ export const TerminalLevelIntro: React.FC<TerminalLevelIntroProps> = ({
     onCompleteRef.current = onComplete;
   }, [onComplete]);
 
-  // Prompt canvas config
-  const boxWidth = TERMINAL_PROMPT_LAYOUT.boxWidth;
+  const { containerRef, boxWidth } = useDynamicBoxWidth();
   const boxHeight = TERMINAL_PROMPT_LAYOUT.boxHeight;
-  const canvasWidth = TERMINAL_PROMPT_LAYOUT.canvasWidth;
-  const canvasHeight = TERMINAL_PROMPT_LAYOUT.canvasHeight;
 
-  const [canvas, setCanvas] = useState<string[]>(() => makeBlankCanvas(canvasWidth, canvasHeight));
+  const [canvas, setCanvas] = useState<string[]>(() => makeBlankCanvas(boxWidth, TERMINAL_PROMPT_LAYOUT.canvasHeight));
   const [canvasStep, setCanvasStep] = useState(0);
 
-  // Reset when level changes
+  // Prevent multiple onComplete calls (Safari ResizeObserver can cause effect re-runs)
+  const hasCompletedRef = useRef(false);
+
+  // Reset canvas when level content changes
   useEffect(() => {
+    hasCompletedRef.current = false;
     setPhase('TYPING');
-    setCanvas(makeBlankCanvas(canvasWidth, canvasHeight));
+    setCanvas(makeBlankCanvas(boxWidth, TERMINAL_PROMPT_LAYOUT.canvasHeight));
     setCanvasStep(0);
+    // We intentionally exclude boxWidth - we don't want to reset animation when width changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [levelId, levelTitle, systemContent, userContent]);
 
   const introSegments: TypewriterSegment[] = useMemo(() => {
@@ -163,8 +168,11 @@ export const TerminalLevelIntro: React.FC<TerminalLevelIntroProps> = ({
   useEffect(() => {
     if (phase !== 'CANVAS') return;
     if (canvasStep >= canvasOps.length) {
+      // Guard against multiple completions (Safari ResizeObserver issue)
+      if (hasCompletedRef.current) return;
+      hasCompletedRef.current = true;
       setPhase('DONE');
-      onCompleteRef.current?.(canvas.join('\n'));
+      onCompleteRef.current?.(canvas.join('\n'), boxWidth);
       return;
     }
 
@@ -178,7 +186,7 @@ export const TerminalLevelIntro: React.FC<TerminalLevelIntroProps> = ({
     }, delay);
 
     return () => window.clearTimeout(t);
-  }, [phase, canvasStep, canvasOps, speedMultiplier]);
+  }, [phase, canvasStep, canvasOps, speedMultiplier, boxWidth, canvas]);
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -200,18 +208,17 @@ export const TerminalLevelIntro: React.FC<TerminalLevelIntroProps> = ({
         />
       </div>
 
-      {/* Prompt box area: match TerminalPromptBoxInput(minimal) exactly to avoid “swap” visual jumps */}
-      <div className="shrink-0 z-20 bg-transparent border-t border-zinc-800 p-3 md:p-4 shadow-[0_-5px_15px_rgba(0,0,0,0.3)]">
+      {/* Prompt box area: match TerminalPromptBoxInput(minimal) exactly to avoid "swap" visual jumps */}
+      <div
+        ref={containerRef}
+        className="shrink-0 z-20 bg-transparent border-t border-zinc-800 p-3 md:p-4 shadow-[0_-5px_15px_rgba(0,0,0,0.3)] overflow-hidden"
+      >
         <div
           className="relative font-mono text-terminal-green text-sm"
           style={{ lineHeight: `${TERMINAL_PROMPT_LAYOUT.lineHeightEm}em` }}
         >
           <pre
-            className="whitespace-pre overflow-x-auto overflow-y-hidden"
-            style={{
-              fontFamily:
-                'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-            }}
+            className="whitespace-pre overflow-hidden terminal-canvas-font"
           >
             {canvas.join('\n')}
           </pre>
@@ -220,5 +227,3 @@ export const TerminalLevelIntro: React.FC<TerminalLevelIntroProps> = ({
     </div>
   );
 };
-
-

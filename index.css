@@ -128,6 +128,21 @@
   #root {
     overflow-x: hidden;
     overflow-y: hidden;
+    /* Ensure nothing exceeds viewport on mobile - 100vw can include scrollbar width */
+    max-width: 100%;
+    width: 100%;
+  }
+
+  /* Prevent touch-based horizontal scrolling on mobile */
+  html {
+    overscroll-behavior-x: none;
+  }
+
+  /* Terminal prompt box canvas font.
+     Uses a "boring" system monospace stack instead of JetBrains Mono
+     because box-drawing glyphs can visually misalign at some sizes. */
+  .terminal-canvas-font {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   }
   
   

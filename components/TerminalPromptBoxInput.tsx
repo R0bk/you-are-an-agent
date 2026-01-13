@@ -5,10 +5,13 @@ import {
   buildGenerateButtonLines,
   computeGenerateButtonStartX,
 } from './terminalPromptLayout';
+import { useDynamicBoxWidth } from './useDynamicBoxWidth';
 
 interface TerminalPromptBoxInputProps {
   /** Full canvas text (lines joined with \n). If omitted, a fully-drawn default box is used. */
   canvasText?: string;
+  /** If canvasText is provided, also provide the boxWidth used to generate it */
+  canvasBoxWidth?: number;
   value: string;
   onChange: (value: string) => void;
   onSubmit: () => void;
@@ -21,29 +24,10 @@ interface TerminalPromptBoxInputProps {
   variant?: 'classic' | 'minimal';
 }
 
-type Canvas = string[];
-
-function makeBlankCanvas(width: number, height: number): Canvas {
-  const line = ' '.repeat(width);
-  return Array.from({ length: height }, () => line);
-}
-
-function setCanvasChar(canvas: Canvas, x: number, y: number, ch: string): Canvas {
-  if (y < 0 || y >= canvas.length) return canvas;
-  const line = canvas[y];
-  if (x < 0 || x >= line.length) return canvas;
-  return canvas.map((l, idx) => {
-    if (idx !== y) return l;
-    return l.slice(0, x) + ch + l.slice(x + 1);
-  });
-}
-
-function buildDefaultCanvasText() {
-  return buildFinalPromptCanvasText();
-}
 
 export const TerminalPromptBoxInput: React.FC<TerminalPromptBoxInputProps> = ({
   canvasText,
+  canvasBoxWidth,
   value,
   onChange,
   onSubmit,
@@ -55,9 +39,26 @@ export const TerminalPromptBoxInput: React.FC<TerminalPromptBoxInputProps> = ({
   tokenCount,
   variant = 'classic',
 }) => {
-  // Must match the “grid” assumptions used when drawing the box.
-  const boxWidth = TERMINAL_PROMPT_LAYOUT.boxWidth;
+  const { containerRef, boxWidth: calculatedBoxWidth } = useDynamicBoxWidth();
+
+  // Build canvas with dynamic width (or use provided canvasText)
+  const { effectiveCanvas, boxWidth } = useMemo(() => {
+    if (canvasText) {
+      return {
+        effectiveCanvas: canvasText,
+        boxWidth: canvasBoxWidth ?? TERMINAL_PROMPT_LAYOUT.boxWidth,
+      };
+    }
+    const result = buildFinalPromptCanvasText(calculatedBoxWidth);
+    return {
+      effectiveCanvas: result.canvasText,
+      boxWidth: result.boxWidth,
+    };
+  }, [canvasText, canvasBoxWidth, calculatedBoxWidth]);
+
   const boxHeight = TERMINAL_PROMPT_LAYOUT.boxHeight;
+  // A stable line-height so 1 "row" maps cleanly to em units
+  const lineHeight = TERMINAL_PROMPT_LAYOUT.lineHeightEm;
 
   // Layout offsets (top-left of box in the canvas)
   const boxOriginX = 0;
@@ -69,27 +70,20 @@ export const TerminalPromptBoxInput: React.FC<TerminalPromptBoxInputProps> = ({
   const innerWidth = boxWidth - 2;
   const innerHeight = boxHeight - 2;
 
-  const effectiveCanvas = useMemo(() => canvasText ?? buildDefaultCanvasText(), [canvasText]);
-
-  // A stable line-height so 1 “row” maps cleanly to em units.
-  const lineHeight = TERMINAL_PROMPT_LAYOUT.lineHeightEm; // em
-
-  // JetBrains Mono is great, but its box-drawing glyphs can visually misalign at some sizes.
-  // Render the canvas (<pre>) with a "boring" system monospace stack for crisp box borders.
-  const canvasFontFamily =
-    'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
-
   const btn = buildGenerateButtonLines(
     TERMINAL_PROMPT_LAYOUT.generateLabel,
     TERMINAL_PROMPT_LAYOUT.generateIcon
   );
 
+  // Textarea is positioned absolutely over the ASCII box canvas.
+  // We use character units (ch) for horizontal and em for vertical positioning
+  // to align precisely with the monospace grid.
   const textareaStyle: React.CSSProperties = {
     position: 'absolute',
     left: `calc(${innerX} * 1ch)`,
     top: `calc(${innerY} * ${lineHeight}em)`,
     width: `calc(${Math.max(0, innerWidth)} * 1ch)`,
-    // Let the input span the full box interior height so it matches the visible prompt box.
+    // Span the full box interior height so it matches the visible prompt box
     // We add padding so text won't sit under the bottom-right button.
     height: `calc(${innerHeight} * ${lineHeight}em)`,
     background: 'transparent',
@@ -98,6 +92,7 @@ export const TerminalPromptBoxInput: React.FC<TerminalPromptBoxInputProps> = ({
     resize: 'none',
     padding: '8px',
     boxSizing: 'border-box',
+    // Add padding so text won't sit under the bottom-right button
     paddingRight: `calc(${btn.width + 1} * 1ch)`,
     paddingBottom: `calc(${btn.height} * ${lineHeight}em)`,
     margin: 0,
@@ -129,7 +124,10 @@ export const TerminalPromptBoxInput: React.FC<TerminalPromptBoxInputProps> = ({
   if (variant === 'minimal') {
     // Match the intro prompt box exactly: just the grid + interactive overlays.
     return (
-      <div className="shrink-0 z-20 bg-transparent border-t border-zinc-800 p-3 md:p-4 shadow-[0_-5px_15px_rgba(0,0,0,0.3)]">
+      <div
+        ref={containerRef}
+        className="shrink-0 z-20 bg-transparent border-t border-zinc-800 p-3 md:p-4 shadow-[0_-5px_15px_rgba(0,0,0,0.3)] overflow-hidden"
+      >
         {/* Prompt header (appears above the box after the intro) */}
         <div className="flex items-center justify-between text-xs md:text-sm font-mono select-none opacity-80 mb-2">
           <div className="flex items-center gap-1.5">
@@ -145,11 +143,10 @@ export const TerminalPromptBoxInput: React.FC<TerminalPromptBoxInputProps> = ({
         </div>
         <div
           className="relative font-mono text-terminal-green text-sm"
-          style={{ lineHeight: `${TERMINAL_PROMPT_LAYOUT.lineHeightEm}em` }}
+          style={{ lineHeight: `${lineHeight}em` }}
         >
           <pre
-            className="whitespace-pre overflow-x-auto overflow-y-hidden"
-            style={{ fontFamily: canvasFontFamily }}
+            className="whitespace-pre overflow-hidden terminal-canvas-font"
           >
             {effectiveCanvas}
           </pre>
@@ -182,7 +179,10 @@ export const TerminalPromptBoxInput: React.FC<TerminalPromptBoxInputProps> = ({
   }
 
   return (
-    <div className="shrink-0 z-20 bg-transparent border-t border-zinc-800 p-3 md:p-4 shadow-[0_-5px_15px_rgba(0,0,0,0.3)]">
+    <div
+      ref={containerRef}
+      className="shrink-0 z-20 bg-transparent border-t border-zinc-800 p-3 md:p-4 shadow-[0_-5px_15px_rgba(0,0,0,0.3)] overflow-hidden"
+    >
       <div className="relative flex flex-col gap-2">
         {/* Prompt Tags */}
         <div className="flex items-center justify-between text-xs md:text-sm font-mono select-none opacity-80">
@@ -200,11 +200,10 @@ export const TerminalPromptBoxInput: React.FC<TerminalPromptBoxInputProps> = ({
 
         <div
           className="relative font-mono text-terminal-green text-sm"
-          style={{ lineHeight: `${TERMINAL_PROMPT_LAYOUT.lineHeightEm}em` }}
+          style={{ lineHeight: `${lineHeight}em` }}
         >
           <pre
-            className="whitespace-pre overflow-x-auto overflow-y-hidden"
-            style={{ fontFamily: canvasFontFamily }}
+            className="whitespace-pre overflow-hidden terminal-canvas-font"
           >
             {effectiveCanvas}
           </pre>
@@ -246,5 +245,3 @@ export const TerminalPromptBoxInput: React.FC<TerminalPromptBoxInputProps> = ({
     </div>
   );
 };
-
-
