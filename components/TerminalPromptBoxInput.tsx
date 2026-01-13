@@ -21,7 +21,6 @@ interface TerminalPromptBoxInputProps {
   textareaRef?: React.RefObject<HTMLTextAreaElement | null>;
   hint?: string;
   tokenCount?: number;
-  variant?: 'classic' | 'minimal';
 }
 
 
@@ -37,7 +36,6 @@ export const TerminalPromptBoxInput: React.FC<TerminalPromptBoxInputProps> = ({
   textareaRef,
   hint,
   tokenCount,
-  variant = 'classic',
 }) => {
   const { containerRef, boxWidth: calculatedBoxWidth } = useDynamicBoxWidth();
 
@@ -121,127 +119,38 @@ export const TerminalPromptBoxInput: React.FC<TerminalPromptBoxInputProps> = ({
     color: 'transparent',
   };
 
-  if (variant === 'minimal') {
-    // Match the intro prompt box exactly: just the grid + interactive overlays.
-    return (
-      <div
-        ref={containerRef}
-        className="shrink-0 z-20 bg-transparent border-t border-zinc-800 p-3 md:p-4 shadow-[0_-5px_15px_rgba(0,0,0,0.3)] overflow-hidden"
-      >
-        {/* Prompt header (appears above the box after the intro) */}
-        <div className="flex items-center justify-between text-xs md:text-sm font-mono select-none opacity-80 mb-2">
-          <div className="flex items-center gap-1.5">
-            <span className="text-zinc-600">&lt;|start|&gt;</span>
-            <span className="text-zinc-400">assistant</span>
-            <span className="text-zinc-600">&lt;|channel|&gt;</span>
-            <span className="text-zinc-300">final</span>
-            <span className="text-zinc-600">&lt;|message|&gt;</span>
-          </div>
-          {typeof tokenCount === 'number' && (
-            <span className="text-zinc-500 tabular-nums">{tokenCount} TOKENS</span>
-          )}
-        </div>
-        <div
-          className="relative font-mono text-terminal-green text-sm"
-          style={{ lineHeight: `${lineHeight}em` }}
-        >
-          <pre
-            className="whitespace-pre overflow-hidden terminal-canvas-font"
-          >
-            {effectiveCanvas}
-          </pre>
-
-          <textarea
-            ref={textareaRef as any}
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            onKeyDown={onKeyDown}
-            placeholder={placeholder}
-            spellCheck={false}
-            disabled={disabled}
-            className="caret-terminal-green placeholder-zinc-700/50 selection:bg-terminal-green/30 selection:text-terminal-green"
-            style={textareaStyle}
-          />
-
-          <button
-            type="button"
-            aria-label="Generate"
-            onClick={onSubmit}
-            disabled={disabled}
-            style={buttonStyle}
-            className="focus:outline-none focus:ring-2 focus:ring-terminal-green/60 rounded-sm"
-          >
-            GENERATE
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div
       ref={containerRef}
-      className="shrink-0 z-20 bg-transparent border-t border-zinc-800 p-3 md:p-4 shadow-[0_-5px_15px_rgba(0,0,0,0.3)] overflow-hidden"
+      className="relative shrink-0 font-mono text-terminal-green text-sm"
+      style={{ lineHeight: `${lineHeight}em` }}
     >
-      <div className="relative flex flex-col gap-2">
-        {/* Prompt Tags */}
-        <div className="flex items-center justify-between text-xs md:text-sm font-mono select-none opacity-80">
-          <div className="flex items-center gap-1.5">
-            <span className="text-zinc-600">&lt;|start|&gt;</span>
-            <span className="text-zinc-400">assistant</span>
-            <span className="text-zinc-600">&lt;|channel|&gt;</span>
-            <span className="text-zinc-300">final</span>
-            <span className="text-zinc-600">&lt;|message|&gt;</span>
-          </div>
-          {typeof tokenCount === 'number' && (
-            <span className="text-zinc-500 tabular-nums">{tokenCount} TOKENS</span>
-          )}
-        </div>
+      <pre className="whitespace-pre overflow-hidden terminal-canvas-font">
+        {effectiveCanvas}
+      </pre>
 
-        <div
-          className="relative font-mono text-terminal-green text-sm"
-          style={{ lineHeight: `${lineHeight}em` }}
-        >
-          <pre
-            className="whitespace-pre overflow-hidden terminal-canvas-font"
-          >
-            {effectiveCanvas}
-          </pre>
+      <textarea
+        ref={textareaRef as any}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={onKeyDown}
+        placeholder={placeholder}
+        spellCheck={false}
+        disabled={disabled}
+        className="caret-terminal-green placeholder-zinc-700/50 selection:bg-terminal-green/30 selection:text-terminal-green"
+        style={textareaStyle}
+      />
 
-          <textarea
-            ref={textareaRef as any}
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            onKeyDown={onKeyDown}
-            placeholder={placeholder}
-            spellCheck={false}
-            disabled={disabled}
-            className="caret-terminal-green placeholder-zinc-700/50 selection:bg-terminal-green/30 selection:text-terminal-green"
-            style={textareaStyle}
-          />
-
-          <button
-            type="button"
-            aria-label="Generate"
-            onClick={onSubmit}
-            disabled={disabled}
-            style={buttonStyle}
-            className="focus:outline-none focus:ring-2 focus:ring-terminal-green/60 rounded-sm"
-          >
-            GENERATE
-          </button>
-        </div>
-
-        <div className="flex justify-between items-center border-t border-white/10 pt-2">
-          <div className="flex items-center gap-2 overflow-hidden flex-1">
-            {hint && (
-              <span className="text-[10px] text-zinc-500 font-mono truncate">
-                Hint: {hint}
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
+      <button
+        type="button"
+        aria-label="Generate"
+        onClick={onSubmit}
+        disabled={disabled}
+        style={buttonStyle}
+        className="focus:outline-none focus:ring-2 focus:ring-terminal-green/60 rounded-sm"
+      >
+        GENERATE
+      </button>
     </div>
   );
 };

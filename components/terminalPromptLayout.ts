@@ -6,7 +6,7 @@ export const TERMINAL_PROMPT_LAYOUT = {
   boxHeight: 8, // taller to fit a 3-line button inside the box
 
   // Minimum box width (must fit the button + some text space)
-  minBoxWidth: 20,
+  minBoxWidth: 16,
 
   // Canvas size (lines rendered in <pre>)
   canvasWidth: 96,

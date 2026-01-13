@@ -246,10 +246,11 @@ export const CRTEffectOverlayWebGL: React.FC<CRTEffectOverlayWebGLProps> = ({
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    // IMPORTANT: We output non-premultiplied RGB in the shader (and optionally premultiply explicitly).
-    // Using premultipliedAlpha=true here can cause visible blending artifacts depending on browser.
-    const gl = canvas.getContext('webgl2', { alpha: true, antialias: true, premultipliedAlpha: false })
-         || canvas.getContext('webgl', { alpha: true, antialias: true, premultipliedAlpha: false });
+    // IMPORTANT: Use premultipliedAlpha=true for consistent cross-browser behavior.
+    // Safari has compositor bugs with premultipliedAlpha=false that cause incorrect alpha blending.
+    // We manually premultiply RGB*alpha in the shader output to ensure correct compositing.
+    const gl = canvas.getContext('webgl2', { alpha: true, antialias: true, premultipliedAlpha: true })
+         || canvas.getContext('webgl', { alpha: true, antialias: true, premultipliedAlpha: true });
     if (!gl) return;
 
     const vs = `
@@ -451,7 +452,8 @@ export const CRTEffectOverlayWebGL: React.FC<CRTEffectOverlayWebGLProps> = ({
         vec3 outCol = pow(max(col, 0.0), vec3(1.0 / max(0.001, u_outputGamma)));
 
         float alpha = u_intensity * edge;
-        gl_FragColor = vec4(outCol, alpha);
+        // Premultiply RGB by alpha for correct compositing with premultipliedAlpha=true
+        gl_FragColor = vec4(outCol * alpha, alpha);
       }
     `;
 

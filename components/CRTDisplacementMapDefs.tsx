@@ -64,24 +64,44 @@ function generateBarrelMapDataUrl(size: number): string {
 
 export const CRTDisplacementMapDefs: React.FC<CRTDisplacementMapDefsProps> = ({ id, size = 256, scale = 0 }) => {
   const [href, setHref] = useState<string>('');
+  const [viewport, setViewport] = useState({ width: 1920, height: 1080 });
 
   const stableSize = useMemo(() => Math.max(64, Math.min(512, Math.floor(size))), [size]);
 
   useEffect(() => {
-    // Generate once on mount.
-    setHref(generateBarrelMapDataUrl(stableSize));
+    // Generate displacement map and track viewport size
+    const update = () => {
+      setHref(generateBarrelMapDataUrl(stableSize));
+      setViewport({ width: window.innerWidth, height: window.innerHeight });
+    };
 
-    // Regenerate on resize (cheap at 256x256) to keep it stable across aspect ratios.
-    const onResize = () => setHref(generateBarrelMapDataUrl(stableSize));
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
   }, [stableSize]);
 
+  // Use userSpaceOnUse so the filter operates in screen coordinates, not element coordinates.
+  // This ensures barrel distortion is relative to the viewport, not individual elements.
   return (
     <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden="true">
-      <filter id={id} x="-20%" y="-20%" width="140%" height="140%">
-        {/* Static barrel field (no turbulence). */}
-        <feImage href={href} preserveAspectRatio="none" result="map" />
+      <filter
+        id={id}
+        filterUnits="userSpaceOnUse"
+        x="0"
+        y="0"
+        width={viewport.width}
+        height={viewport.height}
+      >
+        {/* Displacement map stretched to cover full viewport */}
+        <feImage
+          href={href}
+          preserveAspectRatio="none"
+          result="map"
+          x="0"
+          y="0"
+          width={viewport.width}
+          height={viewport.height}
+        />
         <feDisplacementMap
           in="SourceGraphic"
           in2="map"

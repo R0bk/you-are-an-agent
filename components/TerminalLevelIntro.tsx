@@ -190,7 +190,8 @@ export const TerminalLevelIntro: React.FC<TerminalLevelIntroProps> = ({
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      <div className="flex-1 min-h-0 overflow-y-auto p-4">
+      {/* Single scroll container - everything scrolls together, fades at CRT edges */}
+      <div className="flex-1 min-h-0 overflow-y-auto p-4 lg:pt-16 lg:pb-16 pt-8 pb-8 crt-scroll-fade">
         <AdvancedSequentialTypewriter
           segments={introSegments}
           isAnimating={phase === 'TYPING'}
@@ -206,20 +207,14 @@ export const TerminalLevelIntro: React.FC<TerminalLevelIntroProps> = ({
             maxDelayMs: 280,
           }}
         />
-      </div>
 
-      {/* Prompt box area: match TerminalPromptBoxInput(minimal) exactly to avoid "swap" visual jumps */}
-      <div
-        ref={containerRef}
-        className="shrink-0 z-20 bg-transparent border-t border-zinc-800 p-3 md:p-4 shadow-[0_-5px_15px_rgba(0,0,0,0.3)] overflow-hidden"
-      >
+        {/* Prompt box canvas - inside scroll, no container styling, no extra header (already typed above) */}
         <div
+          ref={containerRef}
           className="relative font-mono text-terminal-green text-sm"
           style={{ lineHeight: `${TERMINAL_PROMPT_LAYOUT.lineHeightEm}em` }}
         >
-          <pre
-            className="whitespace-pre overflow-hidden terminal-canvas-font"
-          >
+          <pre className="whitespace-pre overflow-hidden terminal-canvas-font">
             {canvas.join('\n')}
           </pre>
         </div>

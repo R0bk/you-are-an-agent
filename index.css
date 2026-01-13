@@ -43,24 +43,23 @@
     filter: blur(18px);
   }
   
-  /* DOM-level curvature approximation (keeps interactivity; not a true pixel warp). */
+  /* DOM-level curvature approximation (keeps interactivity; not a true pixel warp).
+
+     NOTE: Previously used CSS 3D transforms (perspective, rotateX, scale) but Safari
+     has compositor issues with 3D transforms on containers with rapidly updating content
+     (typewriter animations, scrolling). The transform would apply "late" causing flicker.
+
+     Now uses border-radius only for a subtle curved-corner effect. The WebGL overlay
+     (CRTEffectOverlayWebGL) handles the actual barrel distortion visually. */
   .crt-curvature {
     position: relative;
-    /* User-facing slider is 0..1; scale it up so max is very noticeable. */
     --crt-curv: calc(var(--crt-curvature, 0) * 10);
-    transform:
-      perspective(1400px)
-      /* Avoid compound X+Y tilt which over-emphasizes one corner (top-left). */
-      rotateX(calc(var(--crt-curv) * 2.4deg))
-      rotateY(0deg)
-      scale(calc(1 - (var(--crt-curv) * 0.02)));
-    transform-origin: center;
-    will-change: transform;
     border-radius: calc(var(--crt-curv) * 18px);
+    overflow: hidden; /* Clip content to the rounded corners */
   }
-  
+
   .crt-curvature::before {
-    /* Disabled: this “glass gradient” reads as a weird wash on large containers. */
+    /* Disabled: this "glass gradient" reads as a weird wash on large containers. */
     content: none;
   }
   
@@ -82,24 +81,19 @@
       brightness(var(--crt-bright));
   }
   
-  /* Shell wrapper that adds “applied to content” overlays and a global curvature/warp transform. */
+  /* Shell wrapper that adds "applied to content" overlays and a subtle curved-corner effect.
+
+     NOTE: Previously used CSS 3D transforms but removed due to Safari compositor issues
+     (same as .crt-curvature above). WebGL overlay handles the visual distortion. */
   .crt-content-shell {
     position: relative;
     overflow: hidden;
-    transform-origin: center;
-  
+
     /* 0..1 */
     --crt-warp: 0;
     --crt-vig: 0.4;
     --crt-scan: 0.25;
-  
-    /* Curvature-ish transform (not a true barrel warp, but it sells “screen glass”). */
-    transform:
-      perspective(1400px)
-      rotateX(calc(var(--crt-warp) * 1.6deg))
-      rotateY(calc(var(--crt-warp) * -1.2deg))
-      scale(calc(1 - (var(--crt-warp) * 0.018)));
-  
+
     border-radius: calc(var(--crt-warp) * 18px);
   }
   
@@ -138,12 +132,57 @@
     overscroll-behavior-x: none;
   }
 
+  /* Terminal-style scrollbar */
+  ::-webkit-scrollbar {
+    width: 16px; /* Large hitbox */
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.4);
+    border-radius: 0;
+    /* Visual width is 9px, centered in 16px hitbox */
+    border-left: 4px solid transparent;
+    border-right: 3px solid transparent;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.6);
+    background-clip: padding-box;
+  }
+  /* Firefox */
+  * {
+    scrollbar-width: auto;
+    scrollbar-color: rgba(255, 255, 255, 0.4) transparent;
+  }
+
   /* Terminal prompt box canvas font.
      Uses a "boring" system monospace stack instead of JetBrains Mono
      because box-drawing glyphs can visually misalign at some sizes. */
   .terminal-canvas-font {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   }
+
+  /* CRT scroll area fade masks - content fades at top/bottom edges */
+  .crt-scroll-fade {
+    --fade-size: 48px;
+    mask-image: linear-gradient(
+      to bottom,
+      transparent 0,
+      black var(--fade-size),
+      black calc(100% - var(--fade-size)),
+      transparent 100%
+    );
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      transparent 0,
+      black var(--fade-size),
+      black calc(100% - var(--fade-size)),
+      transparent 100%
+    );
+  }
+
   
   
   

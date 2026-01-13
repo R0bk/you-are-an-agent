@@ -2,56 +2,42 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { TERMINAL_PROMPT_LAYOUT } from './terminalPromptLayout';
 
 /**
- * Hook to calculate dynamic prompt box width based on container size.
- * Returns a ref to attach to the container and the calculated box width in characters.
+ * Hook to calculate dynamic prompt box width based on viewport size.
+ * Returns a ref for layout consistency and the calculated box width in characters.
  *
- * Note: We only measure once to avoid Safari's ResizeObserver issues with CSS transforms
- * (CRT curvature effects can cause layout recalculations that trigger repeated observer fires).
+ * Uses window.innerWidth instead of ResizeObserver on the container to avoid
+ * Safari issues where CSS transforms (CRT curvature) cause ResizeObserver
+ * to fire repeatedly during layout recalculations.
  */
 export function useDynamicBoxWidth() {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [measuredWidth, setMeasuredWidth] = useState<number | null>(null);
-  const hasMeasuredRef = useRef(false);
+  const [viewportWidth, setViewportWidth] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth : 1024
+  );
 
   useEffect(() => {
-    if (!containerRef.current) return;
-
-    const measure = () => {
-      if (!containerRef.current) return;
-      // Only measure once to avoid Safari's ResizeObserver oscillation with transforms
-      if (hasMeasuredRef.current) return;
-      hasMeasuredRef.current = true;
-      setMeasuredWidth(containerRef.current.clientWidth);
-    };
-
-    // Try to measure immediately
-    measure();
-
-    // Also observe in case the container isn't ready yet
-    const resizeObserver = new ResizeObserver(() => {
-      if (!hasMeasuredRef.current) {
-        measure();
-      }
-    });
-    resizeObserver.observe(containerRef.current);
-
-    return () => resizeObserver.disconnect();
+    const handleResize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   const boxWidth = useMemo(() => {
-    if (measuredWidth === null) return TERMINAL_PROMPT_LAYOUT.boxWidth;
-    // Subtract container padding and add safety buffer
-    // Container has p-3 (12px) + parent containers may have additional padding
-    const paddingOffset = 48;
-    const availableWidth = measuredWidth - paddingOffset;
-    // Use slightly larger char width estimate to be safe (accounts for font rendering variations)
+    // Estimate container width from viewport (accounts for page padding, max-width constraints)
+    // The main container has max-w-7xl (1280px) and p-2/p-4 padding
+    const maxContainerWidth = Math.min(viewportWidth, 1280);
+    const containerPadding = viewportWidth < 768 ? 16 : 32; // p-2 vs p-4
+    const promptBoxPadding = viewportWidth < 768 ? 48 : 48; // p-3 vs p-4
+    const availableWidth = maxContainerWidth - containerPadding - promptBoxPadding;
+
+    // Convert to character count (monospace at text-sm is ~8.5px per char)
     const approxCharWidth = 8.5;
     const charsAvailable = Math.floor(availableWidth / approxCharWidth);
+
     return Math.max(
       TERMINAL_PROMPT_LAYOUT.minBoxWidth,
       Math.min(charsAvailable, TERMINAL_PROMPT_LAYOUT.boxWidth)
     );
-  }, [measuredWidth]);
+  }, [viewportWidth]);
 
   return { containerRef, boxWidth };
 }

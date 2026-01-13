@@ -187,24 +187,30 @@ export const AdvancedSequentialTypewriter: React.FC<AdvancedSequentialTypewriter
       {segments.map((seg, i) => {
         // Non-text nodes are “instant” once we reach their slot.
         if (seg.node) {
-          if (currentIndex >= charTracker) return <React.Fragment key={i}>{seg.node}</React.Fragment>;
+          const nodeStart = charTracker;
+          if (currentIndex >= nodeStart) return <React.Fragment key={i}>{seg.node}</React.Fragment>;
           return null;
         }
 
         const text = seg.text || '';
         const start = charTracker;
-        const end = charTracker + text.length;
         charTracker += text.length;
 
-        if (currentIndex < start) return null;
+        const visibleCount = Math.max(0, Math.min(text.length, currentIndex - start));
+        const visibleText = text.slice(0, visibleCount);
+        const isTyping = isAnimating && currentIndex >= start && currentIndex < start + text.length;
+        const showCursorHere = showCursor && isTyping;
 
-        const slice = text.slice(0, Math.max(0, currentIndex - start));
-        const isTyping = isAnimating && currentIndex >= start && currentIndex < end;
+        if (!visibleText && !showCursorHere) return null;
+
+        // Detect Safari - disable cursor there due to compositor issues with SVG filters
+        const isSafari = typeof navigator !== 'undefined' &&
+          /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
 
         return (
           <span key={i} className={seg.className}>
-            {slice}
-            {showCursor && isTyping && (
+            {visibleText}
+            {showCursorHere && !isSafari && (
               <span className="animate-cursor-blink inline-block w-1.5 h-4 bg-terminal-green align-middle ml-0.5" />
             )}
           </span>

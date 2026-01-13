@@ -422,7 +422,7 @@ if __name__ == "__main__":
     <>
     {isBooting && <BootSequence onComplete={handleBootComplete} />}
     
-    <div className="w-full max-w-7xl mx-auto p-2 md:px-4 md:pt-2 md:pb-4 lg:py-16 flex flex-col gap-4 h-screen max-h-[calc(100vh)] overflow-y-auto overflow-x-hidden relative">
+    <div className="w-full max-w-7xl mx-auto p-2 md:p-4 flex flex-col h-screen max-h-[calc(100vh)] overflow-hidden relative">
       
       {/* SUCCESS OVERLAY */}
       <LevelCompleteOverlay
@@ -444,135 +444,11 @@ if __name__ == "__main__":
           ...(crtUiWarp2d > 0 ? { filter: 'url(#crtWarp2d)' } : null),
         }}
       >
-        {/* Header Info */}
-      <div className={`flex items-start justify-between text-terminal-text font-mono text-sm opacity-70 px-4 shrink-0 leading-relaxed ${isLevelIntroAnimating ? 'hidden' : 'pt-5'}`}>
-          <div className={`flex flex-col gap-0 min-w-0 ${isLevelIntroAnimating ? 'opacity-0 pointer-events-none' : ''}`}>
-              <span className="text-terminal-green font-bold tracking-widest uppercase text-[10px]">
-                  Simulation // Level {level.id.toString().padStart(2, '0')}
-              </span>
-              <span className="text-terminal-text uppercase tracking-widest font-bold opacity-70">
-                {level.title}
-              </span>
-          </div>
+        {/* Main Layout Area - no gap, scroll fills CRT */}
+        <div className={`flex flex-col md:flex-row flex-1 min-h-0`}>
 
-          {/* EASY/REALISTIC selector (terminal-style, right-aligned on desktop) */}
-          {level.id >= 2 && setIsRealisticMode && (
-            <div
-              className="hidden md:flex items-center gap-2 shrink-0 cursor-pointer select-none"
-              role="button"
-              tabIndex={0}
-              aria-label="Toggle mode between Easy and Realistic"
-              onClick={() => setIsRealisticMode((v) => !v)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  setIsRealisticMode((v) => !v);
-                }
-              }}
-            >
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsRealisticMode(false);
-                }}
-                className="text-terminal-text font-mono font-bold tracking-widest uppercase cursor-pointer"
-                aria-label="Set mode to Easy"
-              >
-                {isLevelIntroAnimating ? (
-                  <AdvancedSequentialTypewriter
-                    renderAs="span"
-                    showCursor={false}
-                    preset="bare"
-                    segments={[{ text: 'EASY' }]}
-                    isAnimating={true}
-                    speedMultiplier={typewriterSpeed}
-                    delayProfile={{
-                      baseDelayMs: 12,
-                      whitespaceDelayMs: 0,
-                      wordGapDelayMs: 0,
-                      punctuationDelayMs: 0,
-                      styleChangeDelayMs: 0,
-                      newlineDelayMs: 0,
-                      maxDelayMs: 120,
-                    }}
-                  />
-                ) : (
-                  'EASY'
-                )}
-              </button>
-
-              <div className="flex items-center gap-0">
-                <button
-                  type="button"
-                  aria-label="Set mode to Easy"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setIsRealisticMode(false);
-                  }}
-                  className={`w-4 h-4 border-2 transition-colors ${
-                    isRealisticMode ? 'border-terminal-red/80' : 'border-white/80'
-                  } ${!isRealisticMode ? 'bg-white' : isRealisticMode ? 'bg-transparent hover:bg-terminal-red/10' : 'bg-transparent hover:bg-white/10'}`}
-                />
-                <button
-                  type="button"
-                  aria-label="Set mode to Realistic"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setIsRealisticMode(true);
-                  }}
-                  className={`w-4 h-4 border-2 -ml-[2px] transition-colors ${
-                    isRealisticMode ? 'border-terminal-red/80 bg-terminal-red' : 'border-white/80 bg-transparent hover:bg-white/10'
-                  }`}
-                />
-              </div>
-
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsRealisticMode(true);
-                }}
-                className={`font-mono font-bold tracking-widest uppercase cursor-pointer ${
-                  isRealisticMode ? 'text-terminal-red' : 'text-terminal-text'
-                }`}
-                aria-label="Set mode to Realistic"
-              >
-                {isLevelIntroAnimating ? (
-                  <AdvancedSequentialTypewriter
-                    renderAs="span"
-                    showCursor={false}
-                    preset="bare"
-                    segments={[{ text: 'REALISTIC' }]}
-                    isAnimating={true}
-                    speedMultiplier={typewriterSpeed}
-                    delayProfile={{
-                      baseDelayMs: 12,
-                      whitespaceDelayMs: 0,
-                      wordGapDelayMs: 0,
-                      punctuationDelayMs: 0,
-                      styleChangeDelayMs: 0,
-                      newlineDelayMs: 0,
-                      maxDelayMs: 120,
-                    }}
-                  />
-                ) : (
-                  'REALISTIC'
-                )}
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Main Layout Area */}
-        <div className={`flex flex-col md:flex-row flex-1 min-h-0 gap-4`}>
-        
         {/* LEFT PANE: UNIFIED CONTEXT + INPUT */}
-        <div className={`${(level.type === 'DESKTOP' && showInteractiveDesktop) || (level.id === 5 && showWebVMConsole) ? 'md:w-1/3' : 'w-full'} flex flex-col gap-4 h-full`}>
-            
-            <div
-              className="flex-1 min-h-0"
-            >
+        <div className={`${(level.type === 'DESKTOP' && showInteractiveDesktop) || (level.id === 5 && showWebVMConsole) ? 'md:w-1/3' : 'w-full'} flex flex-col flex-1 min-h-0`}>
               <Terminal
                 title="AGENT_INTERFACE"
                 className="flex-1 min-h-0 shadow-none"
@@ -605,81 +481,179 @@ if __name__ == "__main__":
                  )
                ) : (
                  <>
-                   {/* HISTORY AREA */}
-                   <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 pt-2 relative">
-                      {/* Floating popout button for Level 5 WebVM */}
-                      {level.id === 5 && useWebVM && !showWebVMConsole && !isBooting && (
-                        <button
-                          onClick={() => setShowWebVMConsole(true)}
-                          className="absolute top-2 right-2 z-10 w-6 h-6 flex items-center justify-center bg-black/80 hover:bg-black text-terminal-green text-xs font-mono border border-terminal-green/50 hover:border-terminal-green rounded cursor-pointer transition-all"
-                          title="Show Console"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="15 3 21 3 21 9"></polyline>
-                            <polyline points="9 21 3 21 3 15"></polyline>
-                            <line x1="21" y1="3" x2="14" y2="10"></line>
-                            <line x1="3" y1="21" x2="10" y2="14"></line>
-                          </svg>
-                        </button>
-                      )}
-                      {history.length === 0 && (
-                          <div className="text-zinc-600 italic text-center mt-10">
-                              Initializing context window...
+                   {/* HISTORY AREA - scrollbar at right edge of CRT, fades at edges */}
+                   <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 lg:pt-16 lg:pb-16 pt-8 pb-8 relative crt-scroll-fade">
+                        {/* Header Info - inside scroll area */}
+                        <div className="flex items-start justify-between text-terminal-text font-mono text-sm opacity-70 mb-4 leading-relaxed">
+                          <div className="flex flex-col gap-0 min-w-0">
+                            <span className="text-terminal-green font-bold tracking-widest uppercase text-[10px]">
+                              Simulation // Level {level.id.toString().padStart(2, '0')}
+                            </span>
+                            <span className="text-terminal-text uppercase tracking-widest font-bold opacity-70">
+                              {level.title}
+                            </span>
                           </div>
-                      )}
-                      {history.map((msg, idx) => {
-                        // Find the last message with a screenshot
-                        const lastScreenshotIdx = history.reduce((lastIdx, m, i) => m.imageUrl ? i : lastIdx, -1);
 
-                        return (
-                          <ChatMessage
-                            key={idx}
-                            msg={msg}
-                            idx={idx}
-                            activeImageUrl={activeImageUrl}
-                            isFirstUserMessage={msg.role === 'user' && idx === history.findIndex((m) => m.role === 'user')}
-                            isVisible={idx <= animatingIndex}
-                            isAnimating={idx === animatingIndex}
-                            speedMultiplier={typewriterSpeed}
-                            isLastScreenshot={msg.imageUrl !== undefined && idx === lastScreenshotIdx}
-                            onCheatClick={() => setShowInteractiveDesktop(true)}
-                            onAnimationComplete={() => setAnimatingIndex(current => {
-                                // Prevent race conditions/double-firing where it might skip an index
-                                if (current === idx) return idx + 1;
-                                return current;
-                            })}
-                          />
-                        );
-                      })}
-
-                      {/* Status Indicator */}
-                      {status === 'THINKING' && animatingIndex >= history.length && (
-                        <div className="text-terminal-yellow animate-pulse flex items-center gap-2 text-xs font-bold uppercase tracking-widest mt-4 pl-2">
-                            <span className="w-2 h-2 bg-terminal-yellow rounded-full"></span>
-                            {loadingText}
+                          {/* EASY/REALISTIC selector */}
+                          {level.id >= 2 && setIsRealisticMode && (
+                            <div
+                              className="hidden md:flex items-center gap-2 shrink-0 cursor-pointer select-none"
+                              role="button"
+                              tabIndex={0}
+                              aria-label="Toggle mode between Easy and Realistic"
+                              onClick={() => setIsRealisticMode((v) => !v)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  setIsRealisticMode((v) => !v);
+                                }
+                              }}
+                            >
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); setIsRealisticMode(false); }}
+                                className="text-terminal-text font-mono font-bold tracking-widest uppercase cursor-pointer"
+                                aria-label="Set mode to Easy"
+                              >
+                                {isLevelIntroAnimating ? (
+                                  <AdvancedSequentialTypewriter
+                                    renderAs="span"
+                                    showCursor={false}
+                                    preset="bare"
+                                    segments={[{ text: 'EASY' }]}
+                                    isAnimating={true}
+                                    speedMultiplier={typewriterSpeed}
+                                    delayProfile={{
+                                      baseDelayMs: 12,
+                                      whitespaceDelayMs: 0,
+                                      wordGapDelayMs: 0,
+                                      punctuationDelayMs: 0,
+                                      styleChangeDelayMs: 0,
+                                      newlineDelayMs: 0,
+                                      maxDelayMs: 120,
+                                    }}
+                                  />
+                                ) : (
+                                  'EASY'
+                                )}
+                              </button>
+                              <div className="flex items-center gap-0">
+                                <button
+                                  type="button"
+                                  aria-label="Set mode to Easy"
+                                  onClick={(e) => { e.stopPropagation(); setIsRealisticMode(false); }}
+                                  className={`w-4 h-4 border-2 transition-colors ${isRealisticMode ? 'border-terminal-red/80' : 'border-white/80'} ${!isRealisticMode ? 'bg-white' : 'bg-transparent hover:bg-terminal-red/10'}`}
+                                />
+                                <button
+                                  type="button"
+                                  aria-label="Set mode to Realistic"
+                                  onClick={(e) => { e.stopPropagation(); setIsRealisticMode(true); }}
+                                  className={`w-4 h-4 border-2 -ml-[2px] transition-colors ${isRealisticMode ? 'border-terminal-red/80 bg-terminal-red' : 'border-white/80 bg-transparent hover:bg-white/10'}`}
+                                />
+                              </div>
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); setIsRealisticMode(true); }}
+                                className={`font-mono font-bold tracking-widest uppercase cursor-pointer ${isRealisticMode ? 'text-terminal-red' : 'text-terminal-text'}`}
+                                aria-label="Set mode to Realistic"
+                              >
+                                {isLevelIntroAnimating ? (
+                                  <AdvancedSequentialTypewriter
+                                    renderAs="span"
+                                    showCursor={false}
+                                    preset="bare"
+                                    segments={[{ text: 'REALISTIC' }]}
+                                    isAnimating={true}
+                                    speedMultiplier={typewriterSpeed}
+                                    delayProfile={{
+                                      baseDelayMs: 12,
+                                      whitespaceDelayMs: 0,
+                                      wordGapDelayMs: 0,
+                                      punctuationDelayMs: 0,
+                                      styleChangeDelayMs: 0,
+                                      newlineDelayMs: 0,
+                                      maxDelayMs: 120,
+                                    }}
+                                  />
+                                ) : (
+                                  'REALISTIC'
+                                )}
+                              </button>
+                            </div>
+                          )}
                         </div>
-                      )}
-                   </div>
 
-                   {/* INPUT AREA (ASCII prompt box, but real input controls overlaid) */}
-                   <TerminalPromptBoxInput
-                     canvasText={introCanvasText}
-                     canvasBoxWidth={introBoxWidth}
-                     value={input}
-                     onChange={setInput}
-                     onSubmit={handleSubmit}
-                     onKeyDown={handleKeyDown}
-                     placeholder={level.placeholder}
-                     disabled={status === 'SUCCESS' || status === 'THINKING'}
-                     textareaRef={inputRef}
-                     hint={level.hint}
-                     tokenCount={tokenCount}
-                     variant="minimal"
-                   />
+                        {/* Floating popout button for Level 5 WebVM */}
+                        {level.id === 5 && useWebVM && !showWebVMConsole && !isBooting && (
+                          <button
+                            onClick={() => setShowWebVMConsole(true)}
+                            className="absolute top-2 right-4 z-10 w-6 h-6 flex items-center justify-center bg-black/80 hover:bg-black text-terminal-green text-xs font-mono border border-terminal-green/50 hover:border-terminal-green rounded cursor-pointer transition-all"
+                            title="Show Console"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="15 3 21 3 21 9"></polyline>
+                              <polyline points="9 21 3 21 3 15"></polyline>
+                              <line x1="21" y1="3" x2="14" y2="10"></line>
+                              <line x1="3" y1="21" x2="10" y2="14"></line>
+                            </svg>
+                          </button>
+                        )}
+                        {history.length === 0 && (
+                            <div className="text-zinc-600 italic text-center mt-10">
+                                Initializing context window...
+                            </div>
+                        )}
+                        {history.map((msg, idx) => {
+                          // Find the last message with a screenshot
+                          const lastScreenshotIdx = history.reduce((lastIdx, m, i) => m.imageUrl ? i : lastIdx, -1);
+
+                          return (
+                            <ChatMessage
+                              key={idx}
+                              msg={msg}
+                              idx={idx}
+                              activeImageUrl={activeImageUrl}
+                              isFirstUserMessage={msg.role === 'user' && idx === history.findIndex((m) => m.role === 'user')}
+                              isVisible={idx <= animatingIndex}
+                              isAnimating={idx === animatingIndex}
+                              speedMultiplier={typewriterSpeed}
+                              isLastScreenshot={msg.imageUrl !== undefined && idx === lastScreenshotIdx}
+                              onCheatClick={() => setShowInteractiveDesktop(true)}
+                              onAnimationComplete={() => setAnimatingIndex(current => {
+                                  // Prevent race conditions/double-firing where it might skip an index
+                                  if (current === idx) return idx + 1;
+                                  return current;
+                              })}
+                            />
+                          );
+                        })}
+
+                        {/* Status Indicator */}
+                        {status === 'THINKING' && animatingIndex >= history.length && (
+                          <div className="text-terminal-yellow animate-pulse flex items-center gap-2 text-xs font-bold uppercase tracking-widest mt-4 pl-2">
+                              <span className="w-2 h-2 bg-terminal-yellow rounded-full"></span>
+                              {loadingText}
+                          </div>
+                        )}
+
+                        {/* INPUT AREA (inside scroll container so whole page scrolls) */}
+                        <TerminalPromptBoxInput
+                          canvasText={introCanvasText}
+                          canvasBoxWidth={introBoxWidth}
+                          value={input}
+                          onChange={setInput}
+                          onSubmit={handleSubmit}
+                          onKeyDown={handleKeyDown}
+                          placeholder={level.placeholder}
+                          disabled={status === 'SUCCESS' || status === 'THINKING'}
+                          textareaRef={inputRef}
+                          hint={level.hint}
+                          tokenCount={tokenCount}
+                        />
+                   </div>
                  </>
                )}
               </Terminal>
-            </div>
         </div>
 
         {/* RIGHT PANE: DESKTOP ENVIRONMENT (Only for Desktop Levels when interactive mode is on) */}
