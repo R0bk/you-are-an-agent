@@ -63,6 +63,31 @@ function clampText(s: string, max: number) {
   return t.slice(0, Math.max(0, max - 1)).trimEnd() + '…';
 }
 
+function wrapText(s: string, max: number): string[] {
+  const text = (s ?? '').replace(/\s+/g, ' ').trim();
+  if (text.length <= max) return [text];
+
+  const lines: string[] = [];
+  const words = text.split(' ');
+  let currentLine = '';
+
+  for (const word of words) {
+    if (currentLine.length === 0) {
+      currentLine = word;
+    } else if (currentLine.length + 1 + word.length <= max) {
+      currentLine += ' ' + word;
+    } else {
+      lines.push(currentLine);
+      currentLine = word;
+    }
+  }
+  if (currentLine.length > 0) {
+    lines.push(currentLine);
+  }
+
+  return lines;
+}
+
 export const LevelCompleteOverlay: React.FC<LevelCompleteOverlayProps> = ({
   open,
   levelId,
@@ -90,28 +115,39 @@ export const LevelCompleteOverlay: React.FC<LevelCompleteOverlayProps> = ({
   const totalAsciiChars = LEVEL_COMPLETE_ASCII.length;
 
   const plan = useMemo(() => {
-    const { ops: outlineOps } = buildPromptOutlineOps(boxWidth, boxHeight);
-    const all: Array<{ x: number; y: number; ch: string; kind: 'corner' | 'edge' }> = [...outlineOps];
-
     const innerWidth = boxWidth - 2;
     const centerX = (line: string) => 1 + Math.max(0, Math.floor((innerWidth - line.length) / 2));
 
+    // Wrap the feedback text
+    const feedbackLines = wrapText(feedback, innerWidth - 2);
+    // Calculate dynamic box height based on feedback lines (minimum 16, add extra rows for more lines)
+    const extraLines = Math.max(0, feedbackLines.length - 1);
+    const dynamicBoxHeight = boxHeight + extraLines;
+
+    const { ops: outlineOps } = buildPromptOutlineOps(boxWidth, dynamicBoxHeight);
+    const all: Array<{ x: number; y: number; ch: string; kind: 'corner' | 'edge' }> = [...outlineOps];
+
     const sub = `LEVEL ${levelId.toString().padStart(2, '0')} // ${levelTitle}`;
-    const msg = clampText(feedback, innerWidth - 2);
 
     pushTextOps(all, centerX(sub), 2, clampText(sub, innerWidth - 2));
-    pushTextOps(all, 2, 4, msg);
+
+    // Push each wrapped feedback line
+    let y = 4;
+    for (const line of feedbackLines) {
+      pushTextOps(all, 2, y, line);
+      y++;
+    }
 
     const tokensLine =
       typeof tokenCount === 'number'
         ? `TOKENS: ${tokenCount.toString().padStart(4, ' ')}`
         : 'TOKENS: ----';
-    pushTextOps(all, 2, 6, tokensLine);
+    pushTextOps(all, 2, y + 1, tokensLine);
 
     // CTA button - positioned higher to leave room for hint
     const btn = buildGenerateButtonLines(continueLabel, '→');
     const btnX = 1 + Math.max(0, Math.floor((innerWidth - btn.width) / 2));
-    const btnY = boxHeight - 4 - btn.height; // moved up by 2 rows
+    const btnY = dynamicBoxHeight - 4 - btn.height; // moved up by 2 rows
     for (let row = 0; row < btn.lines.length; row++) {
       const line = btn.lines[row];
       for (let i = 0; i < line.length; i++) {
@@ -121,9 +157,9 @@ export const LevelCompleteOverlay: React.FC<LevelCompleteOverlayProps> = ({
 
     // Extra blank line, then hint at the very bottom
     const hint = '[ENTER] CONTINUE';
-    pushTextOps(all, centerX(clampText(hint, innerWidth - 2)), boxHeight - 2, clampText(hint, innerWidth - 2));
+    pushTextOps(all, centerX(clampText(hint, innerWidth - 2)), dynamicBoxHeight - 2, clampText(hint, innerWidth - 2));
 
-    return { ops: all };
+    return { ops: all, dynamicBoxHeight };
   }, [boxWidth, boxHeight, levelId, levelTitle, feedback, tokenCount, continueLabel]);
 
   // Reset when opened
@@ -132,10 +168,10 @@ export const LevelCompleteOverlay: React.FC<LevelCompleteOverlayProps> = ({
     skipRef.current = false;
     setAsciiVisibleChars(0);
     setAsciiDone(false);
-    setCanvas(makeBlankCanvas(boxWidth, boxHeight));
+    setCanvas(makeBlankCanvas(boxWidth, plan.dynamicBoxHeight));
     setBoxStep(0);
     setBoxDone(false);
-  }, [open, boxWidth, boxHeight, levelId, levelTitle, feedback, tokenCount, continueLabel]);
+  }, [open, boxWidth, plan.dynamicBoxHeight, levelId, levelTitle, feedback, tokenCount, continueLabel]);
 
   // Phase 1: Animate ASCII art
   useEffect(() => {
@@ -186,7 +222,7 @@ export const LevelCompleteOverlay: React.FC<LevelCompleteOverlayProps> = ({
     skipRef.current = true;
     setAsciiVisibleChars(totalAsciiChars);
     setAsciiDone(true);
-    const finalCanvas = applyOpsToBlankCanvas(boxWidth, boxHeight, plan.ops);
+    const finalCanvas = applyOpsToBlankCanvas(boxWidth, plan.dynamicBoxHeight, plan.ops);
     setCanvas(finalCanvas);
     setBoxDone(true);
     setBoxStep(plan.ops.length);
