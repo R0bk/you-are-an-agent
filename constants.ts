@@ -1,13 +1,7 @@
-export const MANIFESTO_TITLE = "AX: Building Empathy and Intuition for Agents";
-export const MANIFESTO_URL = "https://robkopel.com/field-notes/ax-agent-experience.html";
-export const MANIFESTO_CONTENT = `
-## Why This Game Exists
+export const DEBRIEF_TITLE = "AX: Agent Experience";
+export const DEBRIEF_URL = "https://www.robkopel.me/field-notes/ax-agent-experience/";
+export const DEBRIEF_CONTENT = `
+You just experienced agent constraints firsthand: statelessness, limited vision, one action at a time.
 
-The best prompting advice is to build empathy - put yourself in the model's position. Experience the constraints it experiences. See what it sees, nothing more.
-
-This game lets you do exactly that.
-
-## Read More
-
-**Read the full essay at robkopel.com**
+Before Phase 2, read the design philosophy behind what you just experienced—why interfaces for agents ≠ interfaces for humans, and what to do about it.
 `;

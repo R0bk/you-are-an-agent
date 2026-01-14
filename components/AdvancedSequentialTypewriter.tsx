@@ -116,11 +116,33 @@ export const AdvancedSequentialTypewriter: React.FC<AdvancedSequentialTypewriter
     return { totalLength: out.length, charClassByIndex: out };
   }, [segments]);
 
+  // Store values in refs so animation effect doesn't restart when they change
+  const charClassByIndexRef = useRef(charClassByIndex);
+  charClassByIndexRef.current = charClassByIndex;
+  const delayProfileRef = useRef(delayProfile);
+  delayProfileRef.current = delayProfile;
+  const speedMultiplierRef = useRef(speedMultiplier);
+  speedMultiplierRef.current = speedMultiplier;
+
   const [currentIndex, setCurrentIndex] = useState(isAnimating ? 0 : totalLength);
 
-  // Keep currentIndex in sync when animation toggles or content changes
+  // Track previous isAnimating to detect when it changes TO true
+  const prevIsAnimatingRef = useRef(isAnimating);
+
+  // Only reset currentIndex when isAnimating transitions from false to true
+  // or when not animating and totalLength changes (content update)
   useEffect(() => {
-    setCurrentIndex(isAnimating ? 0 : totalLength);
+    const wasAnimating = prevIsAnimatingRef.current;
+    prevIsAnimatingRef.current = isAnimating;
+
+    if (isAnimating && !wasAnimating) {
+      // Just started animating - reset to beginning
+      setCurrentIndex(0);
+    } else if (!isAnimating) {
+      // Not animating - show full content
+      setCurrentIndex(totalLength);
+    }
+    // Don't reset during animation - let it continue
   }, [isAnimating, totalLength]);
 
   useEffect(() => {
@@ -150,16 +172,16 @@ export const AdvancedSequentialTypewriter: React.FC<AdvancedSequentialTypewriter
         return;
       }
 
-      const nextMeta = charClassByIndex[next];
-      const prevMeta = charClassByIndex[next - 1];
+      const nextMeta = charClassByIndexRef.current[next];
+      const prevMeta = charClassByIndexRef.current[next - 1];
       const baseDelay = computeDelayMs(
         nextMeta?.ch ?? '',
         prevMeta?.ch,
         nextMeta?.className,
         prevMeta?.className,
-        delayProfile
+        delayProfileRef.current
       );
-      const delay = Math.max(1, Math.floor(baseDelay / speedMultiplier));
+      const delay = Math.max(1, Math.floor(baseDelay / speedMultiplierRef.current));
 
       timeoutId = window.setTimeout(() => tick(next), delay);
     };
@@ -171,7 +193,7 @@ export const AdvancedSequentialTypewriter: React.FC<AdvancedSequentialTypewriter
       cancelled = true;
       if (timeoutId) window.clearTimeout(timeoutId);
     };
-  }, [isAnimating, totalLength, charClassByIndex, delayProfile, speedMultiplier]);
+  }, [isAnimating, totalLength]); // Only restart when isAnimating or totalLength changes
 
   // Render logic: slice per segment based on currentIndex (like the old version)
   let charTracker = 0;

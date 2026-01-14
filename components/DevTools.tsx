@@ -1,6 +1,13 @@
 import React from 'react';
 import { GameState, Level } from '../types';
-import { Bug } from 'lucide-react';
+import { Bug, Check } from 'lucide-react';
+
+type CompletionState = {
+  levels: number[];
+  advanced: number[];
+  debrief: boolean;
+  ending: boolean;
+};
 
 type DevToolsProps = {
   levels: Level[];
@@ -16,6 +23,7 @@ type DevToolsProps = {
   setCrtWebgl: React.Dispatch<React.SetStateAction<any>>;
   typewriterSpeed: 1 | 2 | 4 | 8 | 16;
   setTypewriterSpeed: React.Dispatch<React.SetStateAction<1 | 2 | 4 | 8 | 16>>;
+  completedState: CompletionState;
 };
 
 export const DevTools: React.FC<DevToolsProps> = ({
@@ -31,6 +39,7 @@ export const DevTools: React.FC<DevToolsProps> = ({
   setCrtWebgl,
   typewriterSpeed,
   setTypewriterSpeed,
+  completedState,
 }) => {
   const [open, setOpen] = React.useState(false);
   const menuRef = React.useRef<HTMLDivElement | null>(null);
@@ -86,29 +95,55 @@ export const DevTools: React.FC<DevToolsProps> = ({
           <div className="absolute right-0 top-full pt-2">
             <div className="w-72 max-h-[75vh] overflow-y-auto bg-zinc-900 border border-zinc-700 rounded-lg shadow-2xl p-1 animate-in fade-in slide-in-from-top-2">
               <div className="text-[10px] uppercase font-bold text-zinc-500 px-2 py-1 tracking-wider">Phase 1</div>
-              {levels.map((l) => (
-                <button
-                  key={l.id}
-                  onClick={() => jumpToLevel(l.id)}
-                  className="w-full text-left px-2 py-1.5 text-xs font-mono text-zinc-300 hover:bg-zinc-800 rounded hover:text-terminal-green truncate flex gap-2"
-                >
-                  <span className="opacity-50">{l.id}</span>
-                  <span>{l.title}</span>
-                </button>
-              ))}
+              {levels.map((l) => {
+                const isComplete = completedState.levels.includes(l.id);
+                return (
+                  <button
+                    key={l.id}
+                    onClick={() => jumpToLevel(l.id)}
+                    className="w-full text-left px-2 py-1.5 text-xs font-mono text-zinc-300 hover:bg-zinc-800 rounded hover:text-terminal-green truncate flex gap-2 items-center"
+                  >
+                    <span className="opacity-50 w-4">{l.id}</span>
+                    <span className="flex-1">{l.title}</span>
+                    {isComplete && <Check size={12} className="text-terminal-green shrink-0" />}
+                  </button>
+                );
+              })}
+              {/* Debrief after Phase 1 */}
+              <button
+                onClick={() => setGameState(GameState.MANIFESTO)}
+                className="w-full text-left px-2 py-1.5 text-xs font-mono text-zinc-300 hover:bg-zinc-800 rounded hover:text-terminal-green truncate flex gap-2 items-center"
+              >
+                <span className="opacity-50 w-4">—</span>
+                <span className="flex-1">Debrief</span>
+                {completedState.debrief && <Check size={12} className="text-terminal-green shrink-0" />}
+              </button>
               <div className="text-[10px] uppercase font-bold text-zinc-500 px-2 py-1 mt-1 border-t border-zinc-800 tracking-wider">
                 Phase 2
               </div>
-              {advancedLevels.map((l) => (
-                <button
-                  key={l.id}
-                  onClick={() => jumpToLevel(l.id)}
-                  className="w-full text-left px-2 py-1.5 text-xs font-mono text-zinc-300 hover:bg-zinc-800 rounded hover:text-terminal-green truncate flex gap-2"
-                >
-                  <span className="opacity-50">{l.id}</span>
-                  <span>{l.title}</span>
-                </button>
-              ))}
+              {advancedLevels.map((l) => {
+                const isComplete = completedState.advanced.includes(l.id);
+                return (
+                  <button
+                    key={l.id}
+                    onClick={() => jumpToLevel(l.id)}
+                    className="w-full text-left px-2 py-1.5 text-xs font-mono text-zinc-300 hover:bg-zinc-800 rounded hover:text-terminal-green truncate flex gap-2 items-center"
+                  >
+                    <span className="opacity-50 w-4">{l.id}</span>
+                    <span className="flex-1">{l.title}</span>
+                    {isComplete && <Check size={12} className="text-terminal-green shrink-0" />}
+                  </button>
+                );
+              })}
+              {/* Ending after Phase 2 */}
+              <button
+                onClick={() => setGameState(GameState.ENDING)}
+                className="w-full text-left px-2 py-1.5 text-xs font-mono text-zinc-300 hover:bg-zinc-800 rounded hover:text-terminal-green truncate flex gap-2 items-center"
+              >
+                <span className="opacity-50 w-4">—</span>
+                <span className="flex-1">Ending</span>
+                {completedState.ending && <Check size={12} className="text-terminal-green shrink-0" />}
+              </button>
               <div className="border-t border-zinc-800 mt-1 pt-1 grid grid-cols-1 gap-0.5">
                 <button
                   onClick={() => setCrtMode((m) => (m === 'webgl' ? 'css' : 'webgl'))}
@@ -716,24 +751,6 @@ export const DevTools: React.FC<DevToolsProps> = ({
                   </div>
                 )}
               </div>
-              <button
-                onClick={() => setGameState(GameState.INTRO)}
-                className="w-full text-left px-2 py-1.5 text-xs font-mono text-zinc-400 hover:bg-zinc-800 rounded hover:text-white"
-              >
-                Go to Intro
-              </button>
-              <button
-                onClick={() => setGameState(GameState.MANIFESTO)}
-                className="w-full text-left px-2 py-1.5 text-xs font-mono text-zinc-400 hover:bg-zinc-800 rounded hover:text-white"
-              >
-                View Manifesto
-              </button>
-              <button
-                onClick={() => setGameState(GameState.ENDING)}
-                className="w-full text-left px-2 py-1.5 text-xs font-mono text-zinc-400 hover:bg-zinc-800 rounded hover:text-white"
-              >
-                View Ending
-              </button>
             </div>
           </div>
         )}

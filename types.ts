@@ -1,7 +1,6 @@
 export enum GameState {
-  INTRO = 'INTRO',
   PLAYING = 'PLAYING',
-  MANIFESTO = 'MANIFESTO', // The Blog Post "AX not UX"
+  MANIFESTO = 'MANIFESTO', // Debrief screen between phases
   PLAYING_ADVANCED = 'PLAYING_ADVANCED',
   ENDING = 'ENDING'
 }

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { buildPromptOutlineOps, makeBlankCanvas, setCanvasChar, buildGenerateButtonLines } from './terminalPromptLayout';
+import { CRTDisplacementMapDefs } from './CRTDisplacementMapDefs';
 
 type Canvas = string[];
 
@@ -11,10 +12,27 @@ interface LevelCompleteOverlayProps {
   tokenCount?: number;
   continueLabel?: string;
   onContinue: () => void;
+  crtUiWarp2d?: number;
 }
 
+// Block-style ASCII art for "LEVEL COMPLETE"
+const LEVEL_COMPLETE_ASCII = `
+██╗     ███████╗██╗   ██╗███████╗██╗
+██║     ██╔════╝██║   ██║██╔════╝██║
+██║     █████╗  ██║   ██║█████╗  ██║
+██║     ██╔══╝  ╚██╗ ██╔╝██╔══╝  ██║
+███████╗███████╗ ╚████╔╝ ███████╗███████╗
+╚══════╝╚══════╝  ╚═══╝  ╚══════╝╚══════╝
+
+ ██████╗ ██████╗ ███╗   ███╗██████╗ ██╗     ███████╗████████╗███████╗
+██╔════╝██╔═══██╗████╗ ████║██╔══██╗██║     ██╔════╝╚══██╔══╝██╔════╝
+██║     ██║   ██║██╔████╔██║██████╔╝██║     █████╗     ██║   █████╗
+██║     ██║   ██║██║╚██╔╝██║██╔═══╝ ██║     ██╔══╝     ██║   ██╔══╝
+╚██████╗╚██████╔╝██║ ╚═╝ ██║██║     ███████╗███████╗   ██║   ███████╗
+ ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝     ╚══════╝╚══════╝   ╚═╝   ╚══════╝
+`.trim();
+
 function computeCanvasDelayMs(ch: string, kind: 'corner' | 'edge') {
-  // Similar cadence to `TerminalLevelIntro`: fast edges, heavier corners, slow punctuation.
   let d = 6;
   if (kind === 'corner') d += 35;
   if (ch === ' ') d += 30;
@@ -53,16 +71,23 @@ export const LevelCompleteOverlay: React.FC<LevelCompleteOverlayProps> = ({
   tokenCount,
   continueLabel = 'INITIALIZE NEXT LEVEL',
   onContinue,
+  crtUiWarp2d = 0,
 }) => {
-  // Keep this size “terminal-ish”: wide enough for stats + CTA, but not full-screen.
-  const boxWidth = 66;
+  const boxWidth = 40;
   const boxHeight = 16;
   const lineHeightEm = 1.05;
 
+  // ASCII art animation state
+  const [asciiVisibleChars, setAsciiVisibleChars] = useState(0);
+  const [asciiDone, setAsciiDone] = useState(false);
+
+  // Box animation state
   const [canvas, setCanvas] = useState<Canvas>(() => makeBlankCanvas(boxWidth, boxHeight));
-  const [step, setStep] = useState(0);
-  const [done, setDone] = useState(false);
+  const [boxStep, setBoxStep] = useState(0);
+  const [boxDone, setBoxDone] = useState(false);
+
   const skipRef = useRef(false);
+  const totalAsciiChars = LEVEL_COMPLETE_ASCII.length;
 
   const plan = useMemo(() => {
     const { ops: outlineOps } = buildPromptOutlineOps(boxWidth, boxHeight);
@@ -71,24 +96,22 @@ export const LevelCompleteOverlay: React.FC<LevelCompleteOverlayProps> = ({
     const innerWidth = boxWidth - 2;
     const centerX = (line: string) => 1 + Math.max(0, Math.floor((innerWidth - line.length) / 2));
 
-    const header = 'LEVEL COMPLETE';
     const sub = `LEVEL ${levelId.toString().padStart(2, '0')} // ${levelTitle}`;
     const msg = clampText(feedback, innerWidth - 2);
 
-    pushTextOps(all, centerX(header), 2, header);
-    pushTextOps(all, centerX(sub), 4, clampText(sub, innerWidth - 2));
-    pushTextOps(all, 2, 6, msg);
+    pushTextOps(all, centerX(sub), 2, clampText(sub, innerWidth - 2));
+    pushTextOps(all, 2, 4, msg);
 
     const tokensLine =
       typeof tokenCount === 'number'
         ? `TOKENS: ${tokenCount.toString().padStart(4, ' ')}`
         : 'TOKENS: ----';
-    pushTextOps(all, 2, 8, tokensLine);
+    pushTextOps(all, 2, 6, tokensLine);
 
-    // CTA “button” (same drawing style as the prompt box generate button).
+    // CTA button - positioned higher to leave room for hint
     const btn = buildGenerateButtonLines(continueLabel, '→');
     const btnX = 1 + Math.max(0, Math.floor((innerWidth - btn.width) / 2));
-    const btnY = boxHeight - 2 - btn.height; // keep one inner row below it
+    const btnY = boxHeight - 4 - btn.height; // moved up by 2 rows
     for (let row = 0; row < btn.lines.length; row++) {
       const line = btn.lines[row];
       for (let i = 0; i < line.length; i++) {
@@ -96,124 +119,160 @@ export const LevelCompleteOverlay: React.FC<LevelCompleteOverlayProps> = ({
       }
     }
 
-    // Helper hint below the button (inside border, on the last inner row).
-    const hint = '[ENTER] CONTINUE  •  [CLICK] SKIP ANIMATION';
+    // Extra blank line, then hint at the very bottom
+    const hint = '[ENTER] CONTINUE';
     pushTextOps(all, centerX(clampText(hint, innerWidth - 2)), boxHeight - 2, clampText(hint, innerWidth - 2));
 
-    return { ops: all, btnX, btnY, btnWidth: btn.width, btnHeight: btn.height };
+    return { ops: all };
   }, [boxWidth, boxHeight, levelId, levelTitle, feedback, tokenCount, continueLabel]);
 
-  // Reset when opened or content changes.
+  // Reset when opened
   useEffect(() => {
     if (!open) return;
     skipRef.current = false;
+    setAsciiVisibleChars(0);
+    setAsciiDone(false);
     setCanvas(makeBlankCanvas(boxWidth, boxHeight));
-    setStep(0);
-    setDone(false);
+    setBoxStep(0);
+    setBoxDone(false);
   }, [open, boxWidth, boxHeight, levelId, levelTitle, feedback, tokenCount, continueLabel]);
 
-  // Drawing loop
+  // Phase 1: Animate ASCII art
   useEffect(() => {
     if (!open) return;
-    if (done) return;
     if (skipRef.current) return;
-    if (step >= plan.ops.length) {
-      setDone(true);
+    if (asciiDone) return;
+    if (asciiVisibleChars >= totalAsciiChars) {
+      setAsciiDone(true);
       return;
     }
 
-    const o = plan.ops[step];
-    const delay = computeCanvasDelayMs(o.ch, o.kind);
-    const t = window.setTimeout(() => {
-      setCanvas((prev) => setCanvasChar(prev, o.x, o.y, o.ch));
-      setStep((n) => n + 1);
-    }, delay);
-    return () => window.clearTimeout(t);
-  }, [open, done, step, plan.ops]);
+    const char = LEVEL_COMPLETE_ASCII[asciiVisibleChars];
+    let delay = 4;
+    if (char === ' ') delay = 1;
+    else if (char === '\n') delay = 8;
+    else if (/[█▓▒░╔╗╚╝║═╠╣╦╩╬]/.test(char)) delay = 3;
 
-  // Skip handler (renders the fully-drawn canvas immediately).
+    const t = setTimeout(() => {
+      setAsciiVisibleChars(v => v + 1);
+    }, delay);
+    return () => clearTimeout(t);
+  }, [open, asciiVisibleChars, totalAsciiChars, asciiDone]);
+
+  // Phase 2: Animate box (after ASCII art is done)
+  useEffect(() => {
+    if (!open) return;
+    if (!asciiDone) return;
+    if (skipRef.current) return;
+    if (boxDone) return;
+    if (boxStep >= plan.ops.length) {
+      setBoxDone(true);
+      return;
+    }
+
+    const o = plan.ops[boxStep];
+    const delay = computeCanvasDelayMs(o.ch, o.kind);
+    const t = setTimeout(() => {
+      setCanvas((prev) => setCanvasChar(prev, o.x, o.y, o.ch));
+      setBoxStep((n) => n + 1);
+    }, delay);
+    return () => clearTimeout(t);
+  }, [open, asciiDone, boxDone, boxStep, plan.ops]);
+
+  // Skip handler
   const skip = () => {
     if (!open) return;
-    if (done) return;
+    if (boxDone) return;
     skipRef.current = true;
+    setAsciiVisibleChars(totalAsciiChars);
+    setAsciiDone(true);
     const finalCanvas = applyOpsToBlankCanvas(boxWidth, boxHeight, plan.ops);
     setCanvas(finalCanvas);
-    setDone(true);
-    setStep(plan.ops.length);
+    setBoxDone(true);
+    setBoxStep(plan.ops.length);
   };
 
-  // Keyboard: Enter continues once done; any key can skip while drawing.
+  // Keyboard handling
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Enter') {
-        if (done) onContinue();
+        if (boxDone) onContinue();
         else skip();
         return;
       }
-      if (!done) skip();
+      if (!boxDone) skip();
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [open, done, onContinue]);
+  }, [open, boxDone, onContinue]);
 
   if (!open) return null;
 
+  const filterId = 'crtWarp2d-levelcomplete';
+  const visibleAscii = LEVEL_COMPLETE_ASCII.slice(0, asciiVisibleChars);
   const canvasFontFamily =
     'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center animate-in fade-in duration-300"
-      onMouseDown={skip}
+      className="fixed inset-0 z-50 bg-black/5 backdrop-blur-sm flex items-center justify-center animate-in fade-in duration-300"
+      onClick={(e) => {
+        // Only skip if clicking on the backdrop (not the content)
+        if (e.target === e.currentTarget && !boxDone) {
+          skip();
+        }
+      }}
       role="dialog"
       aria-modal="true"
       aria-label="Level complete"
     >
-      {/* Layer in the same CRT scanlines/flicker style used elsewhere. */}
+      {/* SVG filter for warp */}
+      {crtUiWarp2d > 0 && (
+        <CRTDisplacementMapDefs id={filterId} scale={crtUiWarp2d} />
+      )}
+
+      {/* CRT effects */}
       <div className="absolute inset-0 crt-scanlines opacity-60 pointer-events-none" />
       <div className="absolute inset-0 crt-flicker opacity-40 pointer-events-none" />
 
-      <div className="relative">
+      <div
+        className="relative flex flex-col items-center"
+        style={crtUiWarp2d > 0 ? { filter: `url(#${filterId})` } : undefined}
+      >
+        {/* ASCII Art Header */}
         <pre
-          className="select-none whitespace-pre leading-[1.05] text-terminal-green text-sm md:text-base"
-          style={{ fontFamily: canvasFontFamily, lineHeight: `${lineHeightEm}em` }}
+          className="text-terminal-green text-[6px] md:text-[8px] font-mono leading-tight mb-4 whitespace-pre select-none"
+          style={{ fontFamily: canvasFontFamily }}
+          onClick={() => !boxDone && skip()}
         >
-          {canvas.join('\n')}
+          {visibleAscii}
+          {!asciiDone && <span className="animate-pulse">█</span>}
         </pre>
 
-        {/* Invisible, properly focusable CTA overlay positioned over the drawn button once done. */}
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            if (!done) {
-              skip();
-              return;
-            }
-            onContinue();
-          }}
-          className={[
-            'absolute',
-            'bg-transparent border-0 p-0 m-0',
-            // Keep the “drawn” glyphs visible from the <pre>; this element is just for interaction.
-            'text-transparent',
-            'focus:outline-none focus:ring-2 focus:ring-terminal-green/60 rounded-sm',
-            done ? 'cursor-pointer' : 'cursor-default',
-          ].join(' ')}
-          style={{
-            left: `calc(${plan.btnX} * 1ch)`,
-            top: `calc(${plan.btnY} * ${lineHeightEm}em)`,
-            width: `calc(${plan.btnWidth} * 1ch)`,
-            height: `calc(${plan.btnHeight} * ${lineHeightEm}em)`,
-          }}
-          aria-label={continueLabel}
-        >
-          {continueLabel}
-        </button>
+        {/* Box with content - only show after ASCII is done */}
+        {asciiDone && (
+          <button
+            type="button"
+            onClick={() => {
+              if (!boxDone) {
+                skip();
+              } else {
+                onContinue();
+              }
+            }}
+            className={`block bg-transparent border-0 p-0 m-0 focus:outline-none focus:ring-2 focus:ring-terminal-green/60 rounded-sm ${boxDone ? 'cursor-pointer' : 'cursor-default'}`}
+            aria-label={boxDone ? continueLabel : 'Skip animation'}
+          >
+            <pre
+              className="select-none whitespace-pre leading-[1.05] text-terminal-green text-sm md:text-base text-left"
+              style={{ fontFamily: canvasFontFamily, lineHeight: `${lineHeightEm}em` }}
+            >
+              {canvas.join('\n')}
+            </pre>
+          </button>
+        )}
       </div>
     </div>
   );
 };
-
-

@@ -8,6 +8,18 @@
     20% { opacity: 0.50; }
     100% { opacity: 0.35; }
   }
+
+  /* Safari filter compositor keepalive: continuous animation prevents Safari from
+     caching the filtered layer as a static texture. The transform change is imperceptible. */
+  @keyframes safari-filter-keepalive {
+    0% { transform: translateZ(0.01px); }
+    50% { transform: translateZ(0.02px); }
+    100% { transform: translateZ(0.01px); }
+  }
+
+  .safari-filter-keepalive {
+    animation: safari-filter-keepalive 0.5s linear infinite;
+  }
   
   .crt-vignette {
     background: radial-gradient(

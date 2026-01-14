@@ -30,6 +30,7 @@ interface TerminalLevelIntroProps {
   userContent: string;
   onComplete: (finalCanvasText: string, boxWidth: number) => void;
   speedMultiplier?: number;
+  filterStyle?: React.CSSProperties;
 }
 
 function computeCanvasDelayMs(ch: string, kind: 'corner' | 'edge') {
@@ -50,6 +51,7 @@ export const TerminalLevelIntro: React.FC<TerminalLevelIntroProps> = ({
   userContent,
   onComplete,
   speedMultiplier = 1,
+  filterStyle,
 }) => {
   const [phase, setPhase] = useState<'TYPING' | 'CANVAS' | 'DONE'>('TYPING');
   const onCompleteRef = useRef(onComplete);
@@ -191,7 +193,10 @@ export const TerminalLevelIntro: React.FC<TerminalLevelIntroProps> = ({
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* Single scroll container - everything scrolls together, fades at CRT edges */}
-      <div className="flex-1 min-h-0 overflow-y-auto p-4 lg:pt-16 lg:pb-16 pt-8 pb-8 crt-scroll-fade">
+      <div
+        className="flex-1 min-h-0 overflow-y-auto p-4 lg:pt-16 lg:pb-16 pt-8 pb-8 crt-scroll-fade"
+        style={filterStyle}
+      >
         <AdvancedSequentialTypewriter
           segments={introSegments}
           isAnimating={phase === 'TYPING'}

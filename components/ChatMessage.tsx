@@ -54,7 +54,18 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
 
   const TAG_BASE = "font-mono select-none opacity-50";
   const BRACKET_COLOR = "text-zinc-500";
-  
+
+  // Memoize delayProfile to prevent animation restarts on re-render
+  const delayProfile = useMemo(() => ({
+    baseDelayMs,
+    whitespaceDelayMs: 35,
+    wordGapDelayMs: 55,
+    punctuationDelayMs: 95,
+    newlineDelayMs: 160,
+    styleChangeDelayMs: 70,
+    maxDelayMs: 260,
+  }), [baseDelayMs]);
+
   // Build Segments
   const segments: TypewriterSegment[] = useMemo(() => {
       const s: TypewriterSegment[] = [];
@@ -206,16 +217,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
           isAnimating={isAnimating}
           onComplete={onAnimationComplete}
           speedMultiplier={speedMultiplier}
-          delayProfile={{
-            baseDelayMs,
-            // Make word breaks + punctuation feel more "terminal-y"
-            whitespaceDelayMs: 35,
-            wordGapDelayMs: 55,
-            punctuationDelayMs: 95,
-            newlineDelayMs: 160,
-            styleChangeDelayMs: 70,
-            maxDelayMs: 260,
-          }}
+          delayProfile={delayProfile}
         />
     </div>
   );

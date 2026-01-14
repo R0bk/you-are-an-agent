@@ -10,9 +10,11 @@ import { TerminalLevelIntro } from './TerminalLevelIntro';
 import { TerminalPromptBoxInput } from './TerminalPromptBoxInput';
 import { AdvancedSequentialTypewriter } from './AdvancedSequentialTypewriter';
 import { useTerminalWheelScrollStep } from './useTerminalWheelScrollStep';
+import { useThrottledScroll } from './useThrottledScroll';
 import { LevelCompleteOverlay } from './LevelCompleteOverlay';
 import { webvmService } from '../services/webvmService';
 import { WebVMFrame } from './WebVMFrame';
+import { CRTDisplacementMapDefs } from './CRTDisplacementMapDefs';
 
 interface SimulationViewProps {
   level: Level;
@@ -50,7 +52,11 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
   // Controls sequential streaming of messages
   // Index of the message currently animating. Messages < index are fully shown. Messages > index are hidden.
   const [animatingIndex, setAnimatingIndex] = useState(0);
-  
+
+  // Detect Safari for compositor workarounds (SVG filter caching issues)
+  const isSafari = typeof navigator !== 'undefined' &&
+    /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const desktopRef = useRef<DesktopEnvironmentRef>(null);
@@ -66,6 +72,27 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
   const [hasInitialScreenshot, setHasInitialScreenshot] = useState(false);
 
   useTerminalWheelScrollStep(scrollRef, { linesPerStep: 1 });
+
+  // Track scroll position for SVG filter alignment (throttled to 20fps)
+  // Use a unique filter ID on each scroll to bypass Safari's cache
+  const [filterNonce, setFilterNonce] = useState(0);
+
+  // Use transform-based scrolling when CRT warp is active to prevent jank
+  // This ensures content and filter update in the same render cycle
+  const useTransformScroll = crtUiWarp2d > 0;
+
+  const { scrollY, scrollHeight, contentStyle, scrollTo, scrollbar } = useThrottledScroll(scrollRef, {
+    maxFps: 60,
+    enabled: !isLevelIntroAnimating,
+    preventOverscroll: true,
+    useTransformScroll,
+    onScroll: () => {
+      // Increment nonce to create new filter ID, bypassing Safari's cache
+      if (isSafari && crtUiWarp2d > 0) {
+        setFilterNonce(n => n + 1);
+      }
+    },
+  });
 
   // Initialize Level & Context
   useEffect(() => {
@@ -209,8 +236,10 @@ if __name__ == "__main__":
   }, [level, isRealisticMode]); // Re-run if level OR mode changes
 
   // Capture initial screenshot for DESKTOP levels
+  // Wait until intro animation is complete to avoid state conflicts
   useEffect(() => {
     if (level.type !== 'DESKTOP') return;
+    if (isLevelIntroAnimating) return; // Wait for intro to finish
     if (hasInitialScreenshot) return;
     if (initialScreenshotStartedRef.current) return; // Prevent re-runs
     if (history.length === 0) return; // Wait for history to be initialized
@@ -237,7 +266,7 @@ if __name__ == "__main__":
     };
 
     captureInitialScreenshot();
-  }, [level.type, history.length, hasInitialScreenshot]);
+  }, [level.type, history.length, hasInitialScreenshot, isLevelIntroAnimating]);
 
   // Handle Boot Completion
   const handleBootComplete = () => {
@@ -250,9 +279,14 @@ if __name__ == "__main__":
   // Auto-scroll chat
   useEffect(() => {
     if (scrollRef.current) {
+      const maxScroll = scrollRef.current.scrollHeight - scrollRef.current.clientHeight;
+      if (useTransformScroll) {
+        scrollTo(maxScroll);
+      } else {
         scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      }
     }
-  }, [history, status, animatingIndex]); // Scroll when animation progresses too
+  }, [history, status, animatingIndex, useTransformScroll, scrollTo]); // Scroll when animation progresses too
 
   // Autofocus input once the "streaming" animation is done and we're idle.
   useEffect(() => {
@@ -421,7 +455,18 @@ if __name__ == "__main__":
   return (
     <>
     {isBooting && <BootSequence onComplete={handleBootComplete} />}
-    
+
+    {/* SVG filter definition - rendered here to access scroll info for alignment */}
+    {/* Use unique ID on Safari to bypass compositor cache */}
+    {crtUiWarp2d > 0 && (
+      <CRTDisplacementMapDefs
+        id={isSafari ? `crtWarp2d-${filterNonce}` : 'crtWarp2d'}
+        scale={crtUiWarp2d}
+        scrollY={scrollY}
+        scrollHeight={scrollHeight}
+      />
+    )}
+
     <div className="w-full max-w-7xl mx-auto p-2 md:p-4 flex flex-col h-screen max-h-[calc(100vh)] overflow-hidden relative">
       
       {/* SUCCESS OVERLAY */}
@@ -432,16 +477,13 @@ if __name__ == "__main__":
         feedback={feedback}
         tokenCount={tokenCount}
         onContinue={handleNextLevel}
+        crtUiWarp2d={crtUiWarp2d}
       />
 
       <div
         className={`flex flex-col gap-4 flex-1 min-h-0 ${crtUiWarp2d > 0 ? '' : 'crt-curvature'}`}
         style={{
           ['--crt-curvature' as any]: crtUiCurvature,
-          // SVG displacement maps apply a pixel-space `scale` from the filter itself.
-          // We control strength by scaling the entire element slightly (cheap),
-          // and by applying the filter only when enabled.
-          ...(crtUiWarp2d > 0 ? { filter: 'url(#crtWarp2d)' } : null),
         }}
       >
         {/* Main Layout Area - no gap, scroll fills CRT */}
@@ -467,6 +509,9 @@ if __name__ == "__main__":
                      developerContent={history.find((m) => m.role === 'developer')?.content}
                      userContent={history.find((m) => m.role === 'user')?.content ?? ''}
                      speedMultiplier={typewriterSpeed}
+                     filterStyle={crtUiWarp2d > 0 ? {
+                       filter: `url(#${isSafari ? `crtWarp2d-${filterNonce}` : 'crtWarp2d'})`,
+                     } : undefined}
                      onComplete={(finalCanvasText, boxWidth) => {
                        setIntroCanvasText(finalCanvasText);
                        setIntroBoxWidth(boxWidth);
@@ -482,7 +527,18 @@ if __name__ == "__main__":
                ) : (
                  <>
                    {/* HISTORY AREA - scrollbar at right edge of CRT, fades at edges */}
-                   <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 lg:pt-16 lg:pb-16 pt-8 pb-8 relative crt-scroll-fade">
+                   {/* When CRT warp is active, use transform-based scrolling to sync content + filter */}
+                   <div
+                     ref={scrollRef}
+                     className={`flex-1 min-h-0 ${useTransformScroll ? 'overflow-hidden' : 'overflow-y-auto'} relative crt-scroll-fade overscroll-contain`}
+                     style={crtUiWarp2d > 0 ? {
+                       filter: `url(#${isSafari ? `crtWarp2d-${filterNonce}` : 'crtWarp2d'})`,
+                     } : undefined}
+                   >
+                   <div
+                     className="p-4 lg:pt-16 lg:pb-16 pt-8 pb-8 min-h-full"
+                     style={useTransformScroll ? contentStyle : undefined}
+                   >
                         {/* Header Info - inside scroll area */}
                         <div className="flex items-start justify-between text-terminal-text font-mono text-sm opacity-70 mb-4 leading-relaxed">
                           <div className="flex flex-col gap-0 min-w-0">
@@ -650,6 +706,24 @@ if __name__ == "__main__":
                           hint={level.hint}
                           tokenCount={tokenCount}
                         />
+                   </div>
+                   {/* Custom scrollbar for transform-based scrolling */}
+                   {scrollbar.show && (
+                     <div
+                       className="absolute right-0 top-0 bottom-0 w-4 cursor-pointer"
+                       style={{ zIndex: 10 }}
+                       onClick={scrollbar.onTrackClick}
+                     >
+                       <div
+                         className="absolute right-[3px] w-[10px] rounded-none bg-white/40 hover:bg-white/60 transition-colors cursor-grab active:cursor-grabbing"
+                         style={{
+                           top: `${scrollbar.thumbTopPercent}%`,
+                           height: `${scrollbar.thumbHeightPercent}%`,
+                         }}
+                         {...scrollbar.thumbProps}
+                       />
+                     </div>
+                   )}
                    </div>
                  </>
                )}
