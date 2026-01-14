@@ -181,6 +181,29 @@ export function useThrottledScroll(
     setState(initState);
     setContainerHeight(el.clientHeight);
 
+    // iOS Safari workaround: when focusing inputs, iOS forcibly scrolls the page
+    // even with overflow:hidden. Detect this and reset native scroll, adjusting
+    // our transform position to compensate.
+    const handleNativeScroll = () => {
+      if (el.scrollTop !== 0 || el.scrollLeft !== 0) {
+        // iOS has scrolled natively - incorporate it into our transform scroll
+        const { scrollHeight, clientHeight } = el;
+        const maxScroll = Math.max(0, scrollHeight - clientHeight);
+        const newScrollY = Math.max(0, Math.min(maxScroll, transformScrollYRef.current + el.scrollTop));
+
+        // Reset native scroll
+        el.scrollTop = 0;
+        el.scrollLeft = 0;
+
+        // Update transform scroll if it changed
+        if (newScrollY !== transformScrollYRef.current) {
+          transformScrollYRef.current = newScrollY;
+          setState({ scrollY: newScrollY, scrollHeight });
+          onScrollRef.current?.({ scrollY: newScrollY, scrollHeight });
+        }
+      }
+    };
+
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault();
 
@@ -327,6 +350,7 @@ export function useThrottledScroll(
     el.addEventListener('keydown', handleKeyDown);
     el.addEventListener('touchstart', handleTouchStart, { passive: true });
     el.addEventListener('touchmove', handleTouchMove, { passive: false });
+    el.addEventListener('scroll', handleNativeScroll, { passive: true });
 
     return () => {
       el.style.overflow = originalOverflow;
@@ -334,6 +358,7 @@ export function useThrottledScroll(
       el.removeEventListener('keydown', handleKeyDown);
       el.removeEventListener('touchstart', handleTouchStart);
       el.removeEventListener('touchmove', handleTouchMove);
+      el.removeEventListener('scroll', handleNativeScroll);
       resizeObserver.disconnect();
       if (pendingUpdateRef.current) {
         cancelAnimationFrame(pendingUpdateRef.current);
