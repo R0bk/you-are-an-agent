@@ -218,6 +218,54 @@ export function useThrottledScroll(
       }
     };
 
+    // Handle touch scrolling for mobile
+    let touchStartY = 0;
+    let touchStartScrollY = 0;
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return;
+      touchStartY = e.touches[0].clientY;
+      touchStartScrollY = transformScrollYRef.current;
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return;
+      e.preventDefault(); // Prevent native scroll
+
+      const { scrollHeight, clientHeight } = el;
+      const maxScroll = Math.max(0, scrollHeight - clientHeight);
+
+      const touchY = e.touches[0].clientY;
+      const deltaY = touchStartY - touchY; // Inverted: drag up = scroll down
+      const newScrollY = Math.max(0, Math.min(maxScroll, touchStartScrollY + deltaY));
+
+      if (newScrollY !== transformScrollYRef.current) {
+        transformScrollYRef.current = newScrollY;
+
+        const now = Date.now();
+        const timeSinceLastUpdate = now - lastUpdateTimeRef.current;
+
+        if (timeSinceLastUpdate >= throttleMs) {
+          if (pendingUpdateRef.current) {
+            cancelAnimationFrame(pendingUpdateRef.current);
+            pendingUpdateRef.current = null;
+          }
+          const newState = { scrollY: newScrollY, scrollHeight };
+          setState(newState);
+          onScrollRef.current?.(newState);
+          lastUpdateTimeRef.current = now;
+        } else if (!pendingUpdateRef.current) {
+          pendingUpdateRef.current = requestAnimationFrame(() => {
+            pendingUpdateRef.current = null;
+            const newState = { scrollY: transformScrollYRef.current, scrollHeight: el.scrollHeight };
+            setState(newState);
+            onScrollRef.current?.(newState);
+            lastUpdateTimeRef.current = Date.now();
+          });
+        }
+      }
+    };
+
     // Handle keyboard scrolling (Page Up/Down, Arrow keys, Home/End)
     const handleKeyDown = (e: KeyboardEvent) => {
       const { scrollHeight, clientHeight } = el;
@@ -277,11 +325,15 @@ export function useThrottledScroll(
 
     el.addEventListener('wheel', handleWheel, { passive: false });
     el.addEventListener('keydown', handleKeyDown);
+    el.addEventListener('touchstart', handleTouchStart, { passive: true });
+    el.addEventListener('touchmove', handleTouchMove, { passive: false });
 
     return () => {
       el.style.overflow = originalOverflow;
       el.removeEventListener('wheel', handleWheel);
       el.removeEventListener('keydown', handleKeyDown);
+      el.removeEventListener('touchstart', handleTouchStart);
+      el.removeEventListener('touchmove', handleTouchMove);
       resizeObserver.disconnect();
       if (pendingUpdateRef.current) {
         cancelAnimationFrame(pendingUpdateRef.current);

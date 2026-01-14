@@ -95,7 +95,9 @@ export const TerminalPromptBoxInput: React.FC<TerminalPromptBoxInputProps> = ({
     paddingBottom: `calc(${btn.height} * ${lineHeight}em)`,
     margin: 0,
     color: 'inherit',
-    font: 'inherit',
+    fontFamily: 'inherit',
+    // Use 16px to prevent iOS Safari from zooming on focus
+    fontSize: '16px',
     lineHeight: `${lineHeight}em`,
   };
 
@@ -136,6 +138,9 @@ export const TerminalPromptBoxInput: React.FC<TerminalPromptBoxInputProps> = ({
         onKeyDown={onKeyDown}
         placeholder={placeholder}
         spellCheck={false}
+        autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="off"
         disabled={disabled}
         className="caret-terminal-green placeholder-zinc-700/50 selection:bg-terminal-green/30 selection:text-terminal-green"
         style={textareaStyle}
