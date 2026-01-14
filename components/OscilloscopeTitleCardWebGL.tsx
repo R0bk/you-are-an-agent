@@ -690,11 +690,21 @@ export const OscilloscopeTitleCardWebGL: React.FC<OscilloscopeTitleCardWebGLProp
     });
 
     const lines = ["YOU ARE", "AN AGENT"];
-    const letterWidth = 140;
-    const letterHeight = 200;
-    const letterSpacing = 32;
-    const wordSpacing = 80;
-    const lineSpacing = 140;
+
+    // Calculate scale factor to fit text to screen width
+    // Reference width is based on "AN AGENT" (the longer line): 8 letters + 7 letter spaces + 1 word space
+    const baseLetterWidth = 140;
+    const baseLetterSpacing = 32;
+    const baseWordSpacing = 80;
+    const referenceWidth = 8 * baseLetterWidth + 7 * baseLetterSpacing + baseWordSpacing;
+    const targetFillPercent = 0.95; // Fill 85% of screen width
+    const scale = Math.min((width * targetFillPercent) / referenceWidth, 1.5); // Cap at 1.5x to avoid giant text on huge screens
+
+    const letterWidth = baseLetterWidth * scale;
+    const letterHeight = 200 * scale;
+    const letterSpacing = baseLetterSpacing * scale;
+    const wordSpacing = baseWordSpacing * scale;
+    const lineSpacing = 140 * scale;
 
     interface PathSegment {
       start: Point;
