@@ -242,7 +242,7 @@ export const LevelCompleteOverlay: React.FC<LevelCompleteOverlayProps> = ({
       >
         {/* ASCII Art Header */}
         <pre
-          className="text-terminal-green text-[6px] md:text-[8px] font-mono leading-tight mb-4 whitespace-pre select-none"
+          className="text-terminal-green text-[8px] md:text-[10px] font-mono leading-tight mb-4 whitespace-pre select-none"
           style={{ fontFamily: canvasFontFamily }}
           onClick={() => !boxDone && skip()}
         >

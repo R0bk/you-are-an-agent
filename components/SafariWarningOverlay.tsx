@@ -1,22 +1,26 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { DEBRIEF_URL } from '../constants';
 import { buildPromptOutlineOps, makeBlankCanvas, setCanvasChar, buildGenerateButtonLines } from './terminalPromptLayout';
 import { CRTDisplacementMapDefs } from './CRTDisplacementMapDefs';
 
 type Canvas = string[];
 
-interface EndingViewProps {
+interface SafariWarningOverlayProps {
+  open: boolean;
+  levelId: number;
+  levelTitle: string;
+  onSkip: () => void;
+  onContinue: () => void;
   crtUiWarp2d?: number;
 }
 
-// Block-style ASCII art for "COMPLETE"
-const COMPLETE_ASCII = `
- ██████╗ ██████╗ ███╗   ███╗██████╗ ██╗     ███████╗████████╗███████╗
-██╔════╝██╔═══██╗████╗ ████║██╔══██╗██║     ██╔════╝╚══██╔══╝██╔════╝
-██║     ██║   ██║██╔████╔██║██████╔╝██║     █████╗     ██║   █████╗
-██║     ██║   ██║██║╚██╔╝██║██╔═══╝ ██║     ██╔══╝     ██║   ██╔══╝
-╚██████╗╚██████╔╝██║ ╚═╝ ██║██║     ███████╗███████╗   ██║   ███████╗
- ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝     ╚══════╝╚══════╝   ╚═╝   ╚══════╝
+// Block-style ASCII art for "SAFARI"
+const SAFARI_ASCII = `
+███████╗ █████╗ ███████╗ █████╗ ██████╗ ██╗
+██╔════╝██╔══██╗██╔════╝██╔══██╗██╔══██╗██║
+███████╗███████║█████╗  ███████║██████╔╝██║
+╚════██║██╔══██║██╔══╝  ██╔══██║██╔══██╗██║
+███████║██║  ██║██║     ██║  ██║██║  ██║██║
+╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝
 `.trim();
 
 function computeCanvasDelayMs(ch: string, kind: 'corner' | 'edge') {
@@ -50,9 +54,16 @@ function clampText(s: string, max: number) {
   return t.slice(0, Math.max(0, max - 1)).trimEnd() + '…';
 }
 
-export const EndingView: React.FC<EndingViewProps> = ({ crtUiWarp2d = 0 }) => {
-  const boxWidth = 40;
-  const boxHeight = 19;
+export const SafariWarningOverlay: React.FC<SafariWarningOverlayProps> = ({
+  open,
+  levelId,
+  levelTitle,
+  onSkip,
+  onContinue,
+  crtUiWarp2d = 0,
+}) => {
+  const boxWidth = 44;
+  const boxHeight = 14;
   const lineHeightEm = 1.05;
 
   // ASCII art animation state
@@ -65,15 +76,7 @@ export const EndingView: React.FC<EndingViewProps> = ({ crtUiWarp2d = 0 }) => {
   const [boxDone, setBoxDone] = useState(false);
 
   const skipRef = useRef(false);
-  const totalAsciiChars = COMPLETE_ASCII.length;
-
-  const handleReboot = () => {
-    window.location.reload();
-  };
-
-  const handleReadPost = () => {
-    window.open(DEBRIEF_URL, '_blank', 'noopener,noreferrer');
-  };
+  const totalAsciiChars = SAFARI_ASCII.length;
 
   const plan = useMemo(() => {
     const { ops: outlineOps } = buildPromptOutlineOps(boxWidth, boxHeight);
@@ -81,65 +84,63 @@ export const EndingView: React.FC<EndingViewProps> = ({ crtUiWarp2d = 0 }) => {
 
     const innerWidth = boxWidth - 2;
 
-    // Content lines
+    // Warning message lines
     const lines = [
-      'SIMULATION TERMINATED',
+      'COMPATIBILITY WARNING',
       '',
-      'Agents don\'t need better prompts.',
-      'They need interfaces designed',
-      'for them.',
+      'This level uses desktop simulation.',
+      'Safari cannot capture screenshots',
+      'due to canvas security policies.',
       '',
-      'Read: AX -- Agent Experience',
+      'Use Chrome/Firefox for best results.',
     ];
 
     let y = 2;
     for (const line of lines) {
-      const x = line === '' ? 2 : 1 + Math.max(0, Math.floor((innerWidth - line.length) / 2));
+      const x = 1 + Math.max(0, Math.floor((innerWidth - line.length) / 2));
       pushTextOps(all, x, y, clampText(line, innerWidth - 2));
       y++;
     }
 
-    // Read post button (centered)
-    const readBtn = buildGenerateButtonLines('READ FULL POST', '↗');
-    const readBtnX = 1 + Math.max(0, Math.floor((innerWidth - readBtn.width) / 2));
-    const readBtnY = boxHeight - 9;
-    for (let row = 0; row < readBtn.lines.length; row++) {
-      const line = readBtn.lines[row];
+    // Skip button
+    const skipBtn = buildGenerateButtonLines('SKIP LEVEL', '→');
+    const skipBtnX = 2;
+    const skipBtnY = boxHeight - 2 - skipBtn.height;
+    for (let row = 0; row < skipBtn.lines.length; row++) {
+      const line = skipBtn.lines[row];
       for (let i = 0; i < line.length; i++) {
-        all.push({ x: readBtnX + i, y: readBtnY + row, ch: line[i], kind: 'edge' });
+        all.push({ x: skipBtnX + i, y: skipBtnY + row, ch: line[i], kind: 'edge' });
       }
     }
 
-    // Reboot button (centered, below read button)
-    const rebootBtn = buildGenerateButtonLines('REBOOT SYSTEM', '↻');
-    const rebootBtnX = 1 + Math.max(0, Math.floor((innerWidth - rebootBtn.width) / 2));
-    const rebootBtnY = boxHeight - 6;
-    for (let row = 0; row < rebootBtn.lines.length; row++) {
-      const line = rebootBtn.lines[row];
+    // Try anyway button
+    const tryBtn = buildGenerateButtonLines('TRY ANYWAY', '?');
+    const tryBtnX = boxWidth - 2 - tryBtn.width;
+    const tryBtnY = boxHeight - 2 - tryBtn.height;
+    for (let row = 0; row < tryBtn.lines.length; row++) {
+      const line = tryBtn.lines[row];
       for (let i = 0; i < line.length; i++) {
-        all.push({ x: rebootBtnX + i, y: rebootBtnY + row, ch: line[i], kind: 'edge' });
+        all.push({ x: tryBtnX + i, y: tryBtnY + row, ch: line[i], kind: 'edge' });
       }
     }
 
-    // Hint at bottom
-    const hint = '[R] REBOOT';
-    const hintX = 1 + Math.max(0, Math.floor((innerWidth - hint.length) / 2));
-    pushTextOps(all, hintX, boxHeight - 2, hint);
-
-    return {
-      ops: all,
-      readBtnX,
-      readBtnWidth: readBtn.width,
-      readBtnY,
-      rebootBtnX,
-      rebootBtnWidth: rebootBtn.width,
-      rebootBtnY,
-      btnHeight: readBtn.height,
-    };
+    return { ops: all, skipBtnX, skipBtnWidth: skipBtn.width, tryBtnX, tryBtnWidth: tryBtn.width, btnY: skipBtnY, btnHeight: skipBtn.height };
   }, [boxWidth, boxHeight]);
+
+  // Reset when opened
+  useEffect(() => {
+    if (!open) return;
+    skipRef.current = false;
+    setAsciiVisibleChars(0);
+    setAsciiDone(false);
+    setCanvas(makeBlankCanvas(boxWidth, boxHeight));
+    setBoxStep(0);
+    setBoxDone(false);
+  }, [open, boxWidth, boxHeight]);
 
   // Phase 1: Animate ASCII art
   useEffect(() => {
+    if (!open) return;
     if (skipRef.current) return;
     if (asciiDone) return;
     if (asciiVisibleChars >= totalAsciiChars) {
@@ -147,7 +148,7 @@ export const EndingView: React.FC<EndingViewProps> = ({ crtUiWarp2d = 0 }) => {
       return;
     }
 
-    const char = COMPLETE_ASCII[asciiVisibleChars];
+    const char = SAFARI_ASCII[asciiVisibleChars];
     let delay = 4;
     if (char === ' ') delay = 1;
     else if (char === '\n') delay = 8;
@@ -157,10 +158,11 @@ export const EndingView: React.FC<EndingViewProps> = ({ crtUiWarp2d = 0 }) => {
       setAsciiVisibleChars(v => v + 1);
     }, delay);
     return () => clearTimeout(t);
-  }, [asciiVisibleChars, totalAsciiChars, asciiDone]);
+  }, [open, asciiVisibleChars, totalAsciiChars, asciiDone]);
 
   // Phase 2: Animate box (after ASCII art is done)
   useEffect(() => {
+    if (!open) return;
     if (!asciiDone) return;
     if (skipRef.current) return;
     if (boxDone) return;
@@ -176,10 +178,11 @@ export const EndingView: React.FC<EndingViewProps> = ({ crtUiWarp2d = 0 }) => {
       setBoxStep((n) => n + 1);
     }, delay);
     return () => clearTimeout(t);
-  }, [asciiDone, boxDone, boxStep, plan.ops]);
+  }, [open, asciiDone, boxDone, boxStep, plan.ops]);
 
   // Skip animation handler
-  const skip = () => {
+  const skipAnimation = () => {
+    if (!open) return;
     if (boxDone) return;
     skipRef.current = true;
     setAsciiVisibleChars(totalAsciiChars);
@@ -192,27 +195,33 @@ export const EndingView: React.FC<EndingViewProps> = ({ crtUiWarp2d = 0 }) => {
 
   // Keyboard handling
   useEffect(() => {
+    if (!open) return;
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'r' || e.key === 'R') {
-        if (boxDone) handleReboot();
-        else skip();
+      if (!boxDone) {
+        skipAnimation();
         return;
       }
-      if (!boxDone) skip();
+      if (e.key === 'Enter') {
+        onSkip();
+      } else if (e.key === 'Escape') {
+        onContinue();
+      }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [boxDone]);
+  }, [open, boxDone, onSkip, onContinue]);
 
-  const filterId = 'crtWarp2d-ending';
-  const visibleAscii = COMPLETE_ASCII.slice(0, asciiVisibleChars);
+  if (!open) return null;
+
+  const filterId = 'crtWarp2d-safariwarning';
+  const visibleAscii = SAFARI_ASCII.slice(0, asciiVisibleChars);
   const canvasFontFamily =
     'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
 
   // Handle click on canvas to determine which button was clicked
   const handleCanvasClick = (e: React.MouseEvent<HTMLPreElement>) => {
     if (!boxDone) {
-      skip();
+      skipAnimation();
       return;
     }
 
@@ -228,17 +237,14 @@ export const EndingView: React.FC<EndingViewProps> = ({ crtUiWarp2d = 0 }) => {
     const charX = Math.floor(clickX / charWidth);
     const charY = Math.floor(clickY / charHeight);
 
-    // Check if click is within read button bounds
-    if (charY >= plan.readBtnY && charY < plan.readBtnY + plan.btnHeight) {
-      if (charX >= plan.readBtnX && charX < plan.readBtnX + plan.readBtnWidth) {
-        handleReadPost();
+    // Check if click is within skip button bounds
+    if (charY >= plan.btnY && charY < plan.btnY + plan.btnHeight) {
+      if (charX >= plan.skipBtnX && charX < plan.skipBtnX + plan.skipBtnWidth) {
+        onSkip();
         return;
       }
-    }
-    // Check if click is within reboot button bounds
-    if (charY >= plan.rebootBtnY && charY < plan.rebootBtnY + plan.btnHeight) {
-      if (charX >= plan.rebootBtnX && charX < plan.rebootBtnX + plan.rebootBtnWidth) {
-        handleReboot();
+      if (charX >= plan.tryBtnX && charX < plan.tryBtnX + plan.tryBtnWidth) {
+        onContinue();
         return;
       }
     }
@@ -246,14 +252,15 @@ export const EndingView: React.FC<EndingViewProps> = ({ crtUiWarp2d = 0 }) => {
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black flex items-center justify-center animate-in fade-in duration-300"
+      className="fixed inset-0 z-50 bg-black/5 backdrop-blur-sm flex items-center justify-center animate-in fade-in duration-300"
       onClick={(e) => {
         if (e.target === e.currentTarget && !boxDone) {
-          skip();
+          skipAnimation();
         }
       }}
-      role="main"
-      aria-label="Simulation complete"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Safari compatibility warning"
     >
       {/* SVG filter for warp */}
       {crtUiWarp2d > 0 && (
@@ -270,9 +277,9 @@ export const EndingView: React.FC<EndingViewProps> = ({ crtUiWarp2d = 0 }) => {
       >
         {/* ASCII Art Header */}
         <pre
-          className="text-terminal-green text-[8px] md:text-[10px] font-mono leading-tight mb-4 whitespace-pre select-none"
+          className="text-terminal-yellow text-[8px] md:text-[10px] font-mono leading-tight mb-4 whitespace-pre select-none"
           style={{ fontFamily: canvasFontFamily }}
-          onClick={() => !boxDone && skip()}
+          onClick={() => !boxDone && skipAnimation()}
         >
           {visibleAscii}
           {!asciiDone && <span className="animate-pulse">█</span>}
@@ -287,6 +294,13 @@ export const EndingView: React.FC<EndingViewProps> = ({ crtUiWarp2d = 0 }) => {
           >
             {canvas.join('\n')}
           </pre>
+        )}
+
+        {/* Keyboard hints */}
+        {boxDone && (
+          <div className="mt-4 text-terminal-green/60 text-xs font-mono">
+            [ENTER] SKIP LEVEL | [ESC] TRY ANYWAY
+          </div>
         )}
       </div>
     </div>

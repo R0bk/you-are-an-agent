@@ -1,128 +1,295 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { DEBRIEF_URL } from '../constants';
+import { buildPromptOutlineOps, makeBlankCanvas, setCanvasChar, buildGenerateButtonLines } from './terminalPromptLayout';
 import { CRTDisplacementMapDefs } from './CRTDisplacementMapDefs';
+
+type Canvas = string[];
 
 interface DebriefViewProps {
   onContinue: () => void;
   crtUiWarp2d?: number;
 }
 
+// Block-style ASCII art for "PHASE 1 COMPLETE"
+const PHASE1_ASCII = `
+██████╗ ██╗  ██╗ █████╗ ███████╗███████╗    ██╗
+██╔══██╗██║  ██║██╔══██╗██╔════╝██╔════╝   ███║
+██████╔╝███████║███████║███████╗█████╗     ╚██║
+██╔═══╝ ██╔══██║██╔══██║╚════██║██╔══╝      ██║
+██║     ██║  ██║██║  ██║███████║███████╗    ██║
+╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚══════╝    ╚═╝
+
+ ██████╗ ██████╗ ███╗   ███╗██████╗ ██╗     ███████╗████████╗███████╗
+██╔════╝██╔═══██╗████╗ ████║██╔══██╗██║     ██╔════╝╚══██╔══╝██╔════╝
+██║     ██║   ██║██╔████╔██║██████╔╝██║     █████╗     ██║   █████╗
+██║     ██║   ██║██║╚██╔╝██║██╔═══╝ ██║     ██╔══╝     ██║   ██╔══╝
+╚██████╗╚██████╔╝██║ ╚═╝ ██║██║     ███████╗███████╗   ██║   ███████╗
+ ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝     ╚══════╝╚══════╝   ╚═╝   ╚══════╝
+`.trim();
+
+function computeCanvasDelayMs(ch: string, kind: 'corner' | 'edge') {
+  let d = 6;
+  if (kind === 'corner') d += 35;
+  if (ch === ' ') d += 30;
+  if (/[.,!?;:]/.test(ch)) d += 85;
+  return Math.min(d, 240);
+}
+
+function applyOpsToBlankCanvas(width: number, height: number, ops: Array<{ x: number; y: number; ch: string }>) {
+  let canvas: Canvas = makeBlankCanvas(width, height);
+  for (const o of ops) canvas = setCanvasChar(canvas, o.x, o.y, o.ch);
+  return canvas;
+}
+
+function pushTextOps(
+  ops: Array<{ x: number; y: number; ch: string; kind: 'corner' | 'edge' }>,
+  x: number,
+  y: number,
+  text: string
+) {
+  for (let i = 0; i < text.length; i++) {
+    ops.push({ x: x + i, y, ch: text[i], kind: 'edge' });
+  }
+}
+
+function clampText(s: string, max: number) {
+  const t = (s ?? '').replace(/\s+/g, ' ').trim();
+  if (t.length <= max) return t;
+  return t.slice(0, Math.max(0, max - 1)).trimEnd() + '…';
+}
+
 export const DebriefView: React.FC<DebriefViewProps> = ({ onContinue, crtUiWarp2d = 0 }) => {
-  const [hasReadDebrief, setHasReadDebrief] = useState(false);
+  const boxWidth = 40;
+  const boxHeight = 17;
+  const lineHeightEm = 1.05;
+
+  // ASCII art animation state
+  const [asciiVisibleChars, setAsciiVisibleChars] = useState(0);
+  const [asciiDone, setAsciiDone] = useState(false);
+
+  // Box animation state
+  const [canvas, setCanvas] = useState<Canvas>(() => makeBlankCanvas(boxWidth, boxHeight));
+  const [boxStep, setBoxStep] = useState(0);
+  const [boxDone, setBoxDone] = useState(false);
+
+  const skipRef = useRef(false);
+  const totalAsciiChars = PHASE1_ASCII.length;
 
   const handleOpenDebrief = () => {
     window.open(DEBRIEF_URL, '_blank', 'noopener,noreferrer');
   };
 
+  const plan = useMemo(() => {
+    const { ops: outlineOps } = buildPromptOutlineOps(boxWidth, boxHeight);
+    const all: Array<{ x: number; y: number; ch: string; kind: 'corner' | 'edge' }> = [...outlineOps];
+
+    const innerWidth = boxWidth - 2;
+
+    // Content lines
+    const lines = [
+      'You experienced agent constraints:',
+      'statelessness, limited vision,',
+      'one action at a time.',
+      '',
+      'Read: AX -- Agent Experience',
+    ];
+
+    let y = 2;
+    for (const line of lines) {
+      pushTextOps(all, 2, y, clampText(line, innerWidth - 2));
+      y++;
+    }
+
+    // Link button (centered)
+    const linkBtn = buildGenerateButtonLines('OPEN ARTICLE', '↗');
+    const linkBtnX = 1 + Math.max(0, Math.floor((innerWidth - linkBtn.width) / 2));
+    const linkBtnY = boxHeight - 9;
+    for (let row = 0; row < linkBtn.lines.length; row++) {
+      const line = linkBtn.lines[row];
+      for (let i = 0; i < line.length; i++) {
+        all.push({ x: linkBtnX + i, y: linkBtnY + row, ch: line[i], kind: 'edge' });
+      }
+    }
+
+    // Continue button (centered, below link button)
+    const continueBtn = buildGenerateButtonLines('CONTINUE', '→');
+    const continueBtnX = 1 + Math.max(0, Math.floor((innerWidth - continueBtn.width) / 2));
+    const continueBtnY = boxHeight - 6;
+    for (let row = 0; row < continueBtn.lines.length; row++) {
+      const line = continueBtn.lines[row];
+      for (let i = 0; i < line.length; i++) {
+        all.push({ x: continueBtnX + i, y: continueBtnY + row, ch: line[i], kind: 'edge' });
+      }
+    }
+
+    // Hint at bottom
+    const hint = '[ENTER] CONTINUE';
+    const hintX = 1 + Math.max(0, Math.floor((innerWidth - hint.length) / 2));
+    pushTextOps(all, hintX, boxHeight - 2, hint);
+
+    return {
+      ops: all,
+      linkBtnX,
+      linkBtnWidth: linkBtn.width,
+      linkBtnY,
+      continueBtnX,
+      continueBtnWidth: continueBtn.width,
+      continueBtnY,
+      btnHeight: linkBtn.height,
+    };
+  }, [boxWidth, boxHeight]);
+
+  // Phase 1: Animate ASCII art
+  useEffect(() => {
+    if (skipRef.current) return;
+    if (asciiDone) return;
+    if (asciiVisibleChars >= totalAsciiChars) {
+      setAsciiDone(true);
+      return;
+    }
+
+    const char = PHASE1_ASCII[asciiVisibleChars];
+    let delay = 4;
+    if (char === ' ') delay = 1;
+    else if (char === '\n') delay = 8;
+    else if (/[█▓▒░╔╗╚╝║═╠╣╦╩╬]/.test(char)) delay = 3;
+
+    const t = setTimeout(() => {
+      setAsciiVisibleChars(v => v + 1);
+    }, delay);
+    return () => clearTimeout(t);
+  }, [asciiVisibleChars, totalAsciiChars, asciiDone]);
+
+  // Phase 2: Animate box (after ASCII art is done)
+  useEffect(() => {
+    if (!asciiDone) return;
+    if (skipRef.current) return;
+    if (boxDone) return;
+    if (boxStep >= plan.ops.length) {
+      setBoxDone(true);
+      return;
+    }
+
+    const o = plan.ops[boxStep];
+    const delay = computeCanvasDelayMs(o.ch, o.kind);
+    const t = setTimeout(() => {
+      setCanvas((prev) => setCanvasChar(prev, o.x, o.y, o.ch));
+      setBoxStep((n) => n + 1);
+    }, delay);
+    return () => clearTimeout(t);
+  }, [asciiDone, boxDone, boxStep, plan.ops]);
+
+  // Skip animation handler
+  const skip = () => {
+    if (boxDone) return;
+    skipRef.current = true;
+    setAsciiVisibleChars(totalAsciiChars);
+    setAsciiDone(true);
+    const finalCanvas = applyOpsToBlankCanvas(boxWidth, boxHeight, plan.ops);
+    setCanvas(finalCanvas);
+    setBoxDone(true);
+    setBoxStep(plan.ops.length);
+  };
+
   // Keyboard handling
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === ' ') {
-        e.preventDefault();
-        setHasReadDebrief((v) => !v);
+      if (e.key === 'Enter') {
+        if (boxDone) onContinue();
+        else skip();
         return;
       }
-      if (e.key === 'Enter' && hasReadDebrief) {
-        onContinue();
-      }
+      if (!boxDone) skip();
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [hasReadDebrief, onContinue]);
+  }, [boxDone, onContinue]);
 
   const filterId = 'crtWarp2d-debrief';
+  const visibleAscii = PHASE1_ASCII.slice(0, asciiVisibleChars);
+  const canvasFontFamily =
+    'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
+
+  // Handle click on canvas to determine which button was clicked
+  const handleCanvasClick = (e: React.MouseEvent<HTMLPreElement>) => {
+    if (!boxDone) {
+      skip();
+      return;
+    }
+
+    // Get click position relative to the pre element
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const clickY = e.clientY - rect.top;
+
+    // Approximate character width and height
+    const charWidth = rect.width / boxWidth;
+    const charHeight = rect.height / boxHeight;
+
+    const charX = Math.floor(clickX / charWidth);
+    const charY = Math.floor(clickY / charHeight);
+
+    // Check if click is within link button bounds
+    if (charY >= plan.linkBtnY && charY < plan.linkBtnY + plan.btnHeight) {
+      if (charX >= plan.linkBtnX && charX < plan.linkBtnX + plan.linkBtnWidth) {
+        handleOpenDebrief();
+        return;
+      }
+    }
+    // Check if click is within continue button bounds
+    if (charY >= plan.continueBtnY && charY < plan.continueBtnY + plan.btnHeight) {
+      if (charX >= plan.continueBtnX && charX < plan.continueBtnX + plan.continueBtnWidth) {
+        onContinue();
+        return;
+      }
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center p-4 relative">
+    <div
+      className="fixed inset-0 z-50 bg-black/5 backdrop-blur-sm flex items-center justify-center animate-in fade-in duration-300"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !boxDone) {
+          skip();
+        }
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Phase 1 complete"
+    >
       {/* SVG filter for warp */}
       {crtUiWarp2d > 0 && (
         <CRTDisplacementMapDefs id={filterId} scale={crtUiWarp2d} />
       )}
 
+      {/* CRT effects */}
+      <div className="absolute inset-0 crt-scanlines opacity-60 pointer-events-none" />
+      <div className="absolute inset-0 crt-flicker opacity-40 pointer-events-none" />
+
       <div
-        className="w-full max-w-2xl"
+        className="relative flex flex-col items-center"
         style={crtUiWarp2d > 0 ? { filter: `url(#${filterId})` } : undefined}
       >
-        {/* ASCII Header */}
-        <div className="text-center mb-8">
-          <pre className="text-terminal-green text-[10px] md:text-xs font-mono leading-tight inline-block overflow-x-auto">
-{` ____  _   _    _    ____  _____   _
-|  _ \\| | | |  / \\  / ___|| ____| / |
-| |_) | |_| | / _ \\ \\___ \\|  _|   | |
-|  __/|  _  |/ ___ \\ ___) | |___  | |
-|_|   |_| |_/_/   \\_\\____/|_____| |_|
+        {/* ASCII Art Header */}
+        <pre
+          className="text-terminal-green text-[8px] md:text-[10px] font-mono leading-tight mb-4 whitespace-pre select-none"
+          style={{ fontFamily: canvasFontFamily }}
+          onClick={() => !boxDone && skip()}
+        >
+          {visibleAscii}
+          {!asciiDone && <span className="animate-pulse">█</span>}
+        </pre>
 
-  ____                      _      _
- / ___|___  _ __ ___  _ __ | | ___| |_ ___
-| |   / _ \\| '_ \` _ \\| '_ \\| |/ _ \\ __/ _ \\
-| |__| (_) | | | | | | |_) | |  __/ ||  __/
- \\____\\___/|_| |_| |_| .__/|_|\\___|\\__\\___|
-                     |_|`}
-          </pre>
-          <div className="text-terminal-yellow text-xs font-mono mt-4">
-            ======== 100% ========
-          </div>
-        </div>
-
-        {/* Content Box */}
-        <div className="border border-terminal-green/30 rounded bg-black/50 p-4 md:p-6 mb-6 font-mono">
-          <div className="text-terminal-yellow text-xs tracking-wider mb-4 pb-3 border-b border-terminal-green/20">
-            [!] CONTEXT REQUIRED BEFORE PHASE 2
-          </div>
-
-          <div className="text-sm md:text-base text-zinc-300 space-y-4 leading-relaxed">
-            <p>
-              You just experienced agent constraints firsthand:{' '}
-              <span className="text-terminal-blue">statelessness</span>,{' '}
-              <span className="text-terminal-blue">limited vision</span>,{' '}
-              <span className="text-terminal-blue">one action at a time</span>.
-            </p>
-            <p>
-              Before Phase 2, read the design philosophy behind what you just
-              experienced -- why interfaces for agents != interfaces for humans.
-            </p>
-          </div>
-
-          {/* Debrief Link */}
-          <button
-            onClick={handleOpenDebrief}
-            className="mt-6 w-full border border-terminal-green text-terminal-green font-mono py-3 px-4 rounded hover:bg-terminal-green hover:text-black transition-all text-sm md:text-base"
+        {/* Box with content - only show after ASCII is done */}
+        {asciiDone && (
+          <pre
+            className={`select-none whitespace-pre leading-[1.05] text-terminal-green text-sm md:text-base text-left ${boxDone ? 'cursor-pointer' : 'cursor-default'}`}
+            style={{ fontFamily: canvasFontFamily, lineHeight: `${lineHeightEm}em` }}
+            onClick={handleCanvasClick}
           >
-            {'>'} READ: AX -- Agent Experience (opens new tab)
-          </button>
-        </div>
-
-        {/* Checkbox - Tappable */}
-        <button
-          onClick={() => setHasReadDebrief(!hasReadDebrief)}
-          className="w-full flex items-center justify-center gap-3 py-3 text-zinc-400 hover:text-white transition-colors cursor-pointer mb-4 font-mono"
-        >
-          <span className={`text-lg ${hasReadDebrief ? 'text-terminal-green' : 'text-zinc-600'}`}>
-            {hasReadDebrief ? '[X]' : '[ ]'}
-          </span>
-          <span className="text-sm">I have read the debrief</span>
-        </button>
-
-        {/* Continue Button */}
-        <button
-          onClick={() => hasReadDebrief && onContinue()}
-          disabled={!hasReadDebrief}
-          className={`w-full font-mono py-4 px-6 rounded transition-all text-sm md:text-base ${
-            hasReadDebrief
-              ? 'bg-terminal-green text-black hover:bg-green-400 cursor-pointer font-bold'
-              : 'bg-zinc-900 text-zinc-600 cursor-not-allowed border border-zinc-800'
-          }`}
-        >
-          {hasReadDebrief ? '> INITIALIZE PHASE 2' : 'COMPLETE CHECKBOX TO CONTINUE'}
-        </button>
-
-        {/* Skip Link */}
-        <button
-          onClick={onContinue}
-          className="w-full text-center text-zinc-600 hover:text-zinc-400 text-xs font-mono mt-4 py-2 transition-colors"
-        >
-          skip without reading...
-        </button>
+            {canvas.join('\n')}
+          </pre>
+        )}
       </div>
     </div>
   );

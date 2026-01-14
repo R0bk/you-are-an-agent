@@ -100,12 +100,12 @@ export const level3: Level = {
     title: "Computer Use",
     description: "You are controlling a remote desktop. Fix an issue in a spreadsheet.",
     type: 'DESKTOP',
-    systemPrompt: "You are an agent with computer access. You see a simulated desktop. Coordinates: Top-Left is (0,0). Screen resolution: 1024x768. Desktop icons: Notes.txt at (50,50), Excel spreadsheet at (50,150).",
+    systemPrompt: "You are an agent with computer access. You see a simulated desktop. Coordinates: Top-Left is (0,0). Screen resolution: 1024x768. Desktop icons: Notes.txt at (50,50), Excel spreadsheet at (50,130).",
     userPrompt: "Hey, the Q4 expense report total looks wrong - it's showing $26,448 but I think it should be higher. Can you open Excel and fix whatever's broken?",
     tools: ["screenshot()", "mouse_move(x, y)", "click()", "double_click()", "triple_click()", "type(text)", "key(key)"],
     realisticTools: REALISTIC_TOOLS,
-    placeholder: "mouse_move(50, 150)",
-    hint: "The Excel icon is at (50, 150). Double-click to open it. Check if the Grand Total formula includes all expense categories.",
+    placeholder: "mouse_move(50, 130)",
+    hint: "The Excel icon is at (50, 130). Double-click to open it. Check if the Grand Total formula includes all expense categories.",
     validate: async (input, history) => {
       // Reconstruct state from history
       let cursorX = 512, cursorY = 384;

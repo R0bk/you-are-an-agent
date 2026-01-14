@@ -12,6 +12,7 @@ import { AdvancedSequentialTypewriter } from './AdvancedSequentialTypewriter';
 import { useTerminalWheelScrollStep } from './useTerminalWheelScrollStep';
 import { useThrottledScroll } from './useThrottledScroll';
 import { LevelCompleteOverlay } from './LevelCompleteOverlay';
+import { SafariWarningOverlay } from './SafariWarningOverlay';
 import { webvmService } from '../services/webvmService';
 import { WebVMFrame } from './WebVMFrame';
 import { CRTDisplacementMapDefs } from './CRTDisplacementMapDefs';
@@ -70,6 +71,18 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
 
   // Track if we've captured the initial screenshot for DESKTOP levels
   const [hasInitialScreenshot, setHasInitialScreenshot] = useState(false);
+
+  // Safari + DESKTOP level incompatibility warning
+  const [showSafariWarning, setShowSafariWarning] = useState(false);
+
+  // Show Safari warning for DESKTOP levels
+  useEffect(() => {
+    if (isSafari && level.type === 'DESKTOP') {
+      setShowSafariWarning(true);
+    } else {
+      setShowSafariWarning(false);
+    }
+  }, [isSafari, level.type]);
 
   useTerminalWheelScrollStep(scrollRef, { linesPerStep: 1 });
 
@@ -480,6 +493,19 @@ if __name__ == "__main__":
         crtUiWarp2d={crtUiWarp2d}
       />
 
+      {/* SAFARI WARNING OVERLAY - Desktop levels have screenshot issues in Safari */}
+      <SafariWarningOverlay
+        open={showSafariWarning}
+        levelId={level.id}
+        levelTitle={level.title}
+        onSkip={() => {
+          setShowSafariWarning(false);
+          onSuccess();
+        }}
+        onContinue={() => setShowSafariWarning(false)}
+        crtUiWarp2d={crtUiWarp2d}
+      />
+
       <div
         className={`flex flex-col gap-4 flex-1 min-h-0 ${crtUiWarp2d > 0 ? '' : 'crt-curvature'}`}
         style={{
@@ -638,6 +664,17 @@ if __name__ == "__main__":
                             </div>
                           )}
                         </div>
+
+                        {/* Safari skip button for DESKTOP levels - absolute positioned */}
+                        {isSafari && level.type === 'DESKTOP' && (
+                          <button
+                            onClick={onSuccess}
+                            className="absolute top-2 right-4 z-10 text-terminal-yellow hover:text-yellow-300 text-sm font-mono tracking-wider uppercase transition-colors"
+                            title="Skip this level (Safari has issues with screenshots)"
+                          >
+                            [SKIP LEVEL]
+                          </button>
+                        )}
 
                         {/* Floating popout button for Level 5 WebVM */}
                         {level.id === 5 && useWebVM && !showWebVMConsole && !isBooting && (
