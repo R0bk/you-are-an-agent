@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Terminal</title>
+		<link rel='stylesheet' href='scrollbar.css'>
+		<!-- Serviceworker script that adds the COI headers to the response headers in cases where the server does not support it. -->
+		<script src="serviceWorker.js"></script>
+		
+		<link href="./_app/immutable/assets/2.BS3Xax_z.css" rel="stylesheet">
+		<link rel="modulepreload" href="./_app/immutable/entry/start.BK5YVOWz.js">
+		<link rel="modulepreload" href="./_app/immutable/chunks/7Vw9MFVd.js">
+		<link rel="modulepreload" href="./_app/immutable/chunks/B2QSKqcC.js">
+		<link rel="modulepreload" href="./_app/immutable/chunks/8N5YGjy-.js">
+		<link rel="modulepreload" href="./_app/immutable/entry/app.je6PdMgv.js">
+		<link rel="modulepreload" href="./_app/immutable/chunks/CmsKOCeN.js">
+		<link rel="modulepreload" href="./_app/immutable/chunks/C6TUdmF6.js">
+		<link rel="modulepreload" href="./_app/immutable/nodes/0.BSXL5EKL.js">
+		<link rel="modulepreload" href="./_app/immutable/nodes/2.D7Qw5rS6.js">
+	</head>
+	<body data-sveltekit-preload-data="hover">
+		<div style="display: contents">  <main class="relative w-full h-full"><div class="fixed top-2 right-2 flex gap-2 z-50"> <div class="flex items-center gap-1 text-xs text-gray-400"><div class="w-2 h-2 rounded-full transition-all duration-150  bg-gray-700" style="box-shadow: none;"></div> <span class="font-mono" data-svelte-h="svelte-1lxtmo4">CPU</span></div>  <div class="flex items-center gap-1 text-xs text-gray-400"><div class="w-2 h-2 rounded-full transition-all duration-150  bg-gray-700" style="box-shadow: none;"></div> <span class="font-mono" data-svelte-h="svelte-rwmr5j">DISK</span></div></div> <div class="absolute top-0 bottom-0 left-0 right-0"> <div class="absolute top-0 bottom-0 left-0 right-0 p-1 scrollbar" id="console" data-svelte-h="svelte-a2s02y"></div></div></main> 
+			
+			<script>
+				{
+					__sveltekit_1u3t85b = {
+						base: new URL(".", location).pathname.slice(0, -1),
+						assets: "/webvm"
+					};
+
+					const element = document.currentScript.parentElement;
+
+					Promise.all([
+						import("./_app/immutable/entry/start.BK5YVOWz.js"),
+						import("./_app/immutable/entry/app.je6PdMgv.js")
+					]).then(([kit, app]) => {
+						kit.start(app, element, {
+							node_ids: [0, 2],
+							data: [null,null],
+							form: null,
+							error: null
+						});
+					});
+				}
+			</script>
+		</div>
+	</body>
+</html>

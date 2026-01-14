@@ -26,8 +26,7 @@ dist-ssr
 .env
 .env.local
 
-# Generated WebVM static export (very large)
-public/webvm
+# WebVM files are now committed (only ~1.5MB)
 
 # Local tooling state
 .playwright-mcp/
