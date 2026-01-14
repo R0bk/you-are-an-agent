@@ -228,18 +228,16 @@ export default function App() {
   const renderContent = () => {
       if (gameState === GameState.PLAYING) {
         return (
-          <div className="min-h-screen flex items-center justify-center">
-            <SimulationView
-                key={`${currentLevelIndex}-${isRealisticMode}`} // Force re-render on level OR mode change
-                level={LEVELS[currentLevelIndex]}
-                onSuccess={handleLevelSuccess}
-                isRealisticMode={isRealisticMode}
-                setIsRealisticMode={setIsRealisticMode}
-                crtUiCurvature={crtMode === 'webgl' ? warpDerived.curvature : 0}
-                crtUiWarp2d={crtMode === 'webgl' ? warpDerived.uiWarp2d : 0}
-                typewriterSpeed={typewriterSpeed}
-            />
-          </div>
+          <SimulationView
+              key={`${currentLevelIndex}-${isRealisticMode}`} // Force re-render on level OR mode change
+              level={LEVELS[currentLevelIndex]}
+              onSuccess={handleLevelSuccess}
+              isRealisticMode={isRealisticMode}
+              setIsRealisticMode={setIsRealisticMode}
+              crtUiCurvature={crtMode === 'webgl' ? warpDerived.curvature : 0}
+              crtUiWarp2d={crtMode === 'webgl' ? warpDerived.uiWarp2d : 0}
+              typewriterSpeed={typewriterSpeed}
+          />
         );
       }
 
@@ -249,18 +247,16 @@ export default function App() {
 
       if (gameState === GameState.PLAYING_ADVANCED) {
         return (
-            <div className="min-h-screen flex items-center justify-center">
-                <SimulationView
-                    key={`${currentLevelIndex}-${isRealisticMode}`} // Force re-render on level OR mode change
-                    level={ADVANCED_LEVELS[currentLevelIndex]}
-                    onSuccess={handleLevelSuccess}
-                    isRealisticMode={isRealisticMode}
-                    setIsRealisticMode={setIsRealisticMode}
-                    crtUiCurvature={crtMode === 'webgl' ? warpDerived.curvature : 0}
-                    crtUiWarp2d={crtMode === 'webgl' ? warpDerived.uiWarp2d : 0}
-                    typewriterSpeed={typewriterSpeed}
-                />
-            </div>
+            <SimulationView
+                key={`${currentLevelIndex}-${isRealisticMode}`} // Force re-render on level OR mode change
+                level={ADVANCED_LEVELS[currentLevelIndex]}
+                onSuccess={handleLevelSuccess}
+                isRealisticMode={isRealisticMode}
+                setIsRealisticMode={setIsRealisticMode}
+                crtUiCurvature={crtMode === 'webgl' ? warpDerived.curvature : 0}
+                crtUiWarp2d={crtMode === 'webgl' ? warpDerived.uiWarp2d : 0}
+                typewriterSpeed={typewriterSpeed}
+            />
         );
       }
 
@@ -271,7 +267,7 @@ export default function App() {
   }
 
   return (
-    <>
+    <div className="h-full w-full overflow-hidden">
         {/* CRTDisplacementMapDefs moved to SimulationView to access scrollY */}
 
         {/* Global CRT overlay.
@@ -327,11 +323,11 @@ export default function App() {
           completedState={completedState}
         />
         <div
-          className={
+          className={`h-full ${
             !titleCard && crtMode === 'webgl' && crtWebgl.applyToContent
               ? `crt-content-shell ${crtWebgl.contentFilters ? 'crt-content-postprocess' : ''}`
-              : undefined
-          }
+              : ''
+          }`}
           style={
             !titleCard && crtMode === 'webgl' && crtWebgl.applyToContent
               ? ({
@@ -377,6 +373,6 @@ export default function App() {
             />
           )
         )}
-    </>
+    </div>
   );
 }

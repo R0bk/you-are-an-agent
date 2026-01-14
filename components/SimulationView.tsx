@@ -480,7 +480,7 @@ if __name__ == "__main__":
       />
     )}
 
-    <div className="w-full max-w-7xl mx-auto p-2 md:p-4 flex flex-col h-screen max-h-[calc(100vh)] overflow-hidden relative">
+    <div className="w-full max-w-7xl mx-auto p-2 md:p-4 flex flex-col h-full overflow-hidden relative">
       
       {/* SUCCESS OVERLAY */}
       <LevelCompleteOverlay
