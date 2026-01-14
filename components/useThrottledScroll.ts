@@ -182,8 +182,8 @@ export function useThrottledScroll(
     setContainerHeight(el.clientHeight);
 
     // iOS Safari workaround: when focusing inputs, iOS forcibly scrolls the page
-    // even with overflow:hidden. Detect this and reset native scroll, adjusting
-    // our transform position to compensate.
+    // even with overflow:hidden. This can happen on the element, its ancestors, or window.
+    // Detect and reset all of these.
     const handleNativeScroll = () => {
       if (el.scrollTop !== 0 || el.scrollLeft !== 0) {
         // iOS has scrolled natively - incorporate it into our transform scroll
@@ -202,6 +202,27 @@ export function useThrottledScroll(
           onScrollRef.current?.({ scrollY: newScrollY, scrollHeight });
         }
       }
+    };
+
+    // Also handle window scroll - iOS may scroll the window/body instead
+    const handleWindowScroll = () => {
+      if (window.scrollY !== 0 || window.scrollX !== 0) {
+        window.scrollTo(0, 0);
+      }
+      // Also check document.documentElement and body
+      if (document.documentElement.scrollTop !== 0) {
+        document.documentElement.scrollTop = 0;
+      }
+      if (document.body.scrollTop !== 0) {
+        document.body.scrollTop = 0;
+      }
+    };
+
+    // Handle visualViewport changes (iOS keyboard appearance)
+    const handleViewportResize = () => {
+      // Reset any scroll that iOS applied
+      handleWindowScroll();
+      handleNativeScroll();
     };
 
     const handleWheel = (e: WheelEvent) => {
@@ -351,6 +372,14 @@ export function useThrottledScroll(
     el.addEventListener('touchstart', handleTouchStart, { passive: true });
     el.addEventListener('touchmove', handleTouchMove, { passive: false });
     el.addEventListener('scroll', handleNativeScroll, { passive: true });
+    window.addEventListener('scroll', handleWindowScroll, { passive: true });
+
+    // visualViewport API for iOS keyboard handling
+    const vv = window.visualViewport;
+    if (vv) {
+      vv.addEventListener('resize', handleViewportResize);
+      vv.addEventListener('scroll', handleViewportResize);
+    }
 
     return () => {
       el.style.overflow = originalOverflow;
@@ -359,6 +388,11 @@ export function useThrottledScroll(
       el.removeEventListener('touchstart', handleTouchStart);
       el.removeEventListener('touchmove', handleTouchMove);
       el.removeEventListener('scroll', handleNativeScroll);
+      window.removeEventListener('scroll', handleWindowScroll);
+      if (vv) {
+        vv.removeEventListener('resize', handleViewportResize);
+        vv.removeEventListener('scroll', handleViewportResize);
+      }
       resizeObserver.disconnect();
       if (pendingUpdateRef.current) {
         cancelAnimationFrame(pendingUpdateRef.current);
