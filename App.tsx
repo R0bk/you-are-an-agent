@@ -362,7 +362,7 @@ export default function App() {
                 setCrtInvalidateNonce((n) => n + 1);
                 setTitleCard(null);
               }}
-              skipDelay={2000}
+              skipDelay={300}
             />
           ) : (
             <TitleCardOverlay

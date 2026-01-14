@@ -1378,13 +1378,6 @@ export const OscilloscopeTitleCardWebGL: React.FC<OscilloscopeTitleCardWebGLProp
         className="absolute inset-0"
         style={{ background: '#000' }}
       />
-      {isComplete && (
-        <div className="absolute bottom-8 text-center w-full">
-          <div className="text-green-400 text-sm font-mono animate-pulse">
-            Press any key to continue...
-          </div>
-        </div>
-      )}
     </div>
   );
 };
