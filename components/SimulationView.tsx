@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Level, Message } from '../types';
 import { Terminal } from './Terminal';
 import { DesktopEnvironment, DesktopEnvironmentRef } from './DesktopEnvironment';
-import { GoogleGenAI } from "@google/genai";
+import { callGemini } from '../services/geminiProxy';
 import { ChatMessage } from './ChatMessage';
 import { BootSequence } from './BootSequence';
 import { TerminalLevelIntro } from './TerminalLevelIntro';
@@ -337,24 +337,21 @@ if __name__ == "__main__":
 
   const generateUserCritique = async (userInput: string, validationMessage: string) => {
       try {
-          const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-          const response = await ai.models.generateContent({
-              model: 'gemini-2.0-flash-exp',
-              contents: `You are simulating a user for an AI agent training game.
+          const prompt = `You are simulating a user for an AI agent training game.
               The agent was given this task: "${level.userPrompt}"
               The agent responded with: "${userInput}"
               This response was rejected because: "${validationMessage}"
-              
+
               Task: Write a short, natural, human reply (1-2 sentences) from the User to the Agent complaining about this specific failure.
               Tone: Slightly annoyed, direct, or confused. NOT robotic.
               Examples:
               - "That's not what I asked for."
               - "Are you sure? That looks wrong."
               - "Please actually use the tool."
-              
-              Reply ONLY with the message text.`
-          });
-          return response.text.trim();
+
+              Reply ONLY with the message text.`;
+          const responseText = await callGemini(prompt);
+          return responseText.trim();
       } catch (e) {
           return "That doesn't look right. Please try again.";
       }

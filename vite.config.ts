@@ -1,14 +1,20 @@
 import path from 'path';
 import fs from 'fs';
-import { defineConfig, loadEnv } from 'vite';
+import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-export default defineConfig(({ mode }) => {
-    const env = loadEnv(mode, '.', '');
+export default defineConfig(() => {
     return {
       server: {
         port: 5173,
         host: '0.0.0.0',
+        // Proxy API calls to backend server in development
+        proxy: {
+          '/api': {
+            target: 'http://localhost:3001',
+            changeOrigin: true,
+          },
+        },
       },
       plugins: [
         react(),
@@ -61,10 +67,7 @@ export default defineConfig(({ mode }) => {
           },
         },
       ],
-      define: {
-        'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
-      },
+      // API key removed from client bundle - now handled by backend proxy
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),

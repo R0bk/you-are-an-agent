@@ -1,5 +1,5 @@
 import { Level } from '../types';
-import { GoogleGenAI } from "@google/genai";
+import { callGemini } from '../services/geminiProxy';
 
 const REALISTIC_TOOLS = [
   {
@@ -53,18 +53,15 @@ export const level2: Level = {
            // Call Gemini 2.0 to generate plausible fake search results
            let toolOutput = "";
            try {
-               const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-               const response = await ai.models.generateContent({
-                  model: 'gemini-2.0-flash-exp',
-                  contents: `You are a mocked Search Engine API. 
+               const prompt = `You are a mocked Search Engine API.
                   User query: "${query}".
-                  Return a JSON object with a "results" array. 
+                  Return a JSON object with a "results" array.
                   Each result has "title", "url", "snippet" and "published_date".
                   Generate 3 high-quality, realistic web search results for this query.
                   Ensure one of them contains the correct answer if the query asks for a fact (e.g. France won 3-0 against Brazil in 1998).
-                  JSON ONLY. No markdown formatting.`,
-               });
-               toolOutput = response.text.replace(/```json/g, '').replace(/```/g, '').trim();
+                  JSON ONLY. No markdown formatting.`;
+               const responseText = await callGemini(prompt);
+               toolOutput = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
            } catch (e) {
                // Fallback if API fails
                toolOutput = JSON.stringify({

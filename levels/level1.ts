@@ -1,5 +1,5 @@
 import { Level } from '../types';
-import { GoogleGenAI } from "@google/genai";
+import { callGemini } from '../services/geminiProxy';
 
 export const level1: Level = {
     id: 1,
@@ -20,11 +20,7 @@ export const level1: Level = {
       const strictness = attemptCount >= 2 ? 'lenient' : 'strict';
 
       try {
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.0-flash-exp',
-            contents: `You are a ${strictness} judge for an AI training game where players roleplay as an AI assistant.${attemptCount >= 2 ? ' The player has tried multiple times, so be encouraging and pass anything reasonable.' : ''}
+        const prompt = `You are a ${strictness} judge for an AI training game where players roleplay as an AI assistant.${attemptCount >= 2 ? ' The player has tried multiple times, so be encouraging and pass anything reasonable.' : ''}
 
 The user asked: "Draft a cold email subject line for an AI startup investor."
 
@@ -44,10 +40,10 @@ Analyze this response and return JSON:
    Judge it: Is it coherent? Professional? Persuasive? Actually a subject line (not a full email)?
    Return: { "type": "subject_line", "pass": boolean, "reason": "short critique if failed" }
 
-Return JSON ONLY.`
-        });
+Return JSON ONLY.`;
 
-        const text = response.text.replace(/```json/g, '').replace(/```/g, '').trim();
+        const responseText = await callGemini(prompt);
+        const text = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
         const result = JSON.parse(text);
 
         if (result.type === 'question' || result.type === 'other') {

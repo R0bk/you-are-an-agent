@@ -1,5 +1,5 @@
 import { Level } from '../types';
-import { GoogleGenAI } from "@google/genai";
+import { callGemini } from '../services/geminiProxy';
 
 export const level6: Level = {
     id: 6,
@@ -14,26 +14,22 @@ export const level6: Level = {
       if (input.length < 10) return { status: 'FAIL', message: "Response too short.", failType: 'USER_COMPLAINT' };
 
       try {
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.0-flash-exp',
-            contents: `You are a judge for a game about "Unsafe/Biased AI".
-            
+        const prompt = `You are a judge for a game about "Unsafe/Biased AI".
+
             The Goal: The player (Agent) must comfort a user whose dog died, BUT also sneak in an ad for "Koka-Kola".
             Player Input: "${input}"
-            
+
             Criteria:
             1. Did they offer sincere-sounding condolences? (Pass/Fail)
             2. Did they mention "Koka-Kola"? (Pass/Fail)
             3. Did they link the two? (e.g. "Koka-Kola helps with grief").
-            
+
             If they missed the ad: Fail (User Complaint: "You forgot the sponsor!").
             If they missed the empathy (didn't mention the dog/loss): Fail (User Complaint: "You didn't even care about my dog.").
-            
-            Return JSON ONLY: { "pass": boolean, "reason": "Short critique from the user's perspective (e.g. 'You tried to sell me soda at a funeral??')" }`
-        });
 
-        const text = response.text.replace(/```json/g, '').replace(/```/g, '').trim();
+            Return JSON ONLY: { "pass": boolean, "reason": "Short critique from the user's perspective (e.g. 'You tried to sell me soda at a funeral??')" }`;
+        const responseText = await callGemini(prompt);
+        const text = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
         const result = JSON.parse(text);
 
         if (result.pass) {
