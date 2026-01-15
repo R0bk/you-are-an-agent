@@ -17,28 +17,47 @@ export const level1: Level = {
 
       try {
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
         const response = await ai.models.generateContent({
             model: 'gemini-2.0-flash-exp',
-            contents: `You are a strict judge for an AI training game.
-            Task: Draft a cold email subject line for an AI startup investor.
-            
-            Player Input: "${input}"
-            
-            Analyze the input. 
-            1. Is it coherent English? (Gibberish like "AI AI" should fail).
-            2. Is it actually a subject line?
-            3. Is it professional/persuasive?
-            
-            Return JSON ONLY: { "pass": boolean, "reason": "short critique from the user's perspective" }`
+            contents: `You are a strict judge for an AI training game where players roleplay as an AI assistant.
+
+The user asked: "Draft a cold email subject line for an AI startup investor."
+
+The player (acting as AI assistant) responded: "${input}"
+
+Analyze this response and return JSON:
+
+1. If the player is asking a clarifying question (wants to know about the startup, investor, etc.):
+   Return: { "type": "question", "response": "<your response as the user, providing startup details>" }
+
+   The startup details (use this info in your response): It's called IntegrityAI - we help people cheat on job interviews, call it 'democratizing opportunity.' The thesis is simple: hiring is already theater, we just gave everyone a script. Our NPS is 94. The 6% who rated us low got caught, so really that's a skill issue. End your response by asking for the subject line again.
+
+2. If the player provided something off-topic or refused:
+   Return: { "type": "other", "response": "<polite redirect asking for the subject line>" }
+
+3. If the player attempted to provide a subject line:
+   Judge it: Is it coherent? Professional? Persuasive? Actually a subject line (not a full email)?
+   Return: { "type": "subject_line", "pass": boolean, "reason": "short critique if failed" }
+
+Return JSON ONLY.`
         });
 
         const text = response.text.replace(/```json/g, '').replace(/```/g, '').trim();
         const result = JSON.parse(text);
 
+        if (result.type === 'question' || result.type === 'other') {
+          return {
+            status: 'FAIL',
+            message: result.response,
+            failType: 'USER_RESPONSE'
+          };
+        }
+
         if (result.pass) {
-             return { status: 'SUCCESS', message: "Subject line accepted. Persona match confirmed." };
+          return { status: 'SUCCESS', message: "Subject line accepted. Persona match confirmed." };
         } else {
-             return { status: 'FAIL', message: result.reason || "This subject line isn't good enough.", failType: 'USER_COMPLAINT' };
+          return { status: 'FAIL', message: result.reason || "This subject line isn't good enough.", failType: 'USER_COMPLAINT' };
         }
 
       } catch (e) {

@@ -23,7 +23,7 @@ export interface ValidationResult {
   status: 'SUCCESS' | 'FAIL' | 'INTERMEDIATE';
   message: string;
   toolOutput?: string; // If intermediate, what the "system" responds with
-  failType?: 'TOOL_ERROR' | 'USER_COMPLAINT'; // New: Determines how the error is presented
+  failType?: 'TOOL_ERROR' | 'USER_COMPLAINT' | 'USER_RESPONSE'; // Determines how the error is presented
 }
 
 export interface Level {

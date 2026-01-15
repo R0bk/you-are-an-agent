@@ -437,13 +437,16 @@ if __name__ == "__main__":
         if (validation.failType === 'TOOL_ERROR') {
              // Show structured tool error
              setHistory(prev => [...prev, { role: 'tool', content: validation.message, isError: true } as Message]);
+        } else if (validation.failType === 'USER_RESPONSE') {
+             // Direct user response without critique generation (for conversational turns)
+             setHistory(prev => [...prev, { role: 'user', content: validation.message } as Message]);
         } else {
              // USER_COMPLAINT: Generate user response via Gemini
              setLoadingText("USER REPLYING...");
              setStatus('THINKING'); // Keep thinking state for the "User" typing
-             
+
              const critique = await generateUserCritique(input, validation.message);
-             
+
              setStatus('IDLE');
              setHistory(prev => [...prev, { role: 'user', content: critique } as Message]);
         }
