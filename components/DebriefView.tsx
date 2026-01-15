@@ -10,21 +10,21 @@ interface DebriefViewProps {
   crtUiWarp2d?: number;
 }
 
-// Block-style ASCII art for "PHASE 1 COMPLETE"
-const PHASE1_ASCII = `
-██████╗ ██╗  ██╗ █████╗ ███████╗███████╗    ██╗
-██╔══██╗██║  ██║██╔══██╗██╔════╝██╔════╝   ███║
-██████╔╝███████║███████║███████╗█████╗     ╚██║
-██╔═══╝ ██╔══██║██╔══██║╚════██║██╔══╝      ██║
-██║     ██║  ██║██║  ██║███████║███████╗    ██║
-╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚══════╝    ╚═╝
+// Block-style ASCII art for "PHASE 2 UNLOCKED"
+const PHASE2_ASCII = `
+██████╗ ██╗  ██╗ █████╗ ███████╗███████╗    ██████╗
+██╔══██╗██║  ██║██╔══██╗██╔════╝██╔════╝    ╚════██╗
+██████╔╝███████║███████║███████╗█████╗       █████╔╝
+██╔═══╝ ██╔══██║██╔══██║╚════██║██╔══╝      ██╔═══╝
+██║     ██║  ██║██║  ██║███████║███████╗    ███████╗
+╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚══════╝    ╚══════╝
 
- ██████╗ ██████╗ ███╗   ███╗██████╗ ██╗     ███████╗████████╗███████╗
-██╔════╝██╔═══██╗████╗ ████║██╔══██╗██║     ██╔════╝╚══██╔══╝██╔════╝
-██║     ██║   ██║██╔████╔██║██████╔╝██║     █████╗     ██║   █████╗
-██║     ██║   ██║██║╚██╔╝██║██╔═══╝ ██║     ██╔══╝     ██║   ██╔══╝
-╚██████╗╚██████╔╝██║ ╚═╝ ██║██║     ███████╗███████╗   ██║   ███████╗
- ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝     ╚══════╝╚══════╝   ╚═╝   ╚══════╝
+██╗   ██╗███╗   ██╗██╗      ██████╗  ██████╗██╗  ██╗███████╗██████╗
+██║   ██║████╗  ██║██║     ██╔═══██╗██╔════╝██║ ██╔╝██╔════╝██╔══██╗
+██║   ██║██╔██╗ ██║██║     ██║   ██║██║     █████╔╝ █████╗  ██║  ██║
+██║   ██║██║╚██╗██║██║     ██║   ██║██║     ██╔═██╗ ██╔══╝  ██║  ██║
+╚██████╔╝██║ ╚████║███████╗╚██████╔╝╚██████╗██║  ██╗███████╗██████╔╝
+ ╚═════╝ ╚═╝  ╚═══╝╚══════╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝
 `.trim();
 
 function computeCanvasDelayMs(ch: string, kind: 'corner' | 'edge') {
@@ -60,7 +60,7 @@ function clampText(s: string, max: number) {
 
 export const DebriefView: React.FC<DebriefViewProps> = ({ onContinue, crtUiWarp2d = 0 }) => {
   const boxWidth = 40;
-  const boxHeight = 17;
+  const boxHeight = 21;
   const lineHeightEm = 1.05;
 
   // ASCII art animation state
@@ -73,7 +73,7 @@ export const DebriefView: React.FC<DebriefViewProps> = ({ onContinue, crtUiWarp2
   const [boxDone, setBoxDone] = useState(false);
 
   const skipRef = useRef(false);
-  const totalAsciiChars = PHASE1_ASCII.length;
+  const totalAsciiChars = PHASE2_ASCII.length;
 
   const handleOpenDebrief = () => {
     window.open(DEBRIEF_URL, '_blank', 'noopener,noreferrer');
@@ -85,34 +85,38 @@ export const DebriefView: React.FC<DebriefViewProps> = ({ onContinue, crtUiWarp2
 
     const innerWidth = boxWidth - 2;
 
-    // Content lines
-    const lines = [
-      'You experienced agent constraints:',
-      'statelessness, limited vision,',
-      'one action at a time.',
-      '',
-      'Read: AX -- Agent Experience',
+    // Header
+    const header = 'NEW CAPABILITIES:';
+    pushTextOps(all, 2, 2, header);
+
+    // Capability lines with [+] prefix - each appears as a "reveal"
+    const capabilities = [
+      '[+] Desktop Control',
+      '[+] Mouse & Keyboard Input',
+      '[+] Real Linux VM',
+      '[+] MCP Server Access',
     ];
 
-    let y = 2;
-    for (const line of lines) {
-      pushTextOps(all, 2, y, clampText(line, innerWidth - 2));
+    let y = 4;
+    for (const cap of capabilities) {
+      pushTextOps(all, 3, y, clampText(cap, innerWidth - 4));
       y++;
     }
 
-    // Link button (centered)
-    const linkBtn = buildGenerateButtonLines('OPEN ARTICLE', '↗');
-    const linkBtnX = 1 + Math.max(0, Math.floor((innerWidth - linkBtn.width) / 2));
-    const linkBtnY = boxHeight - 9;
-    for (let row = 0; row < linkBtn.lines.length; row++) {
-      const line = linkBtn.lines[row];
-      for (let i = 0; i < line.length; i++) {
-        all.push({ x: linkBtnX + i, y: linkBtnY + row, ch: line[i], kind: 'edge' });
-      }
-    }
+    // Progress bar (28% = 2 of 7 levels)
+    const progressLabel = '28%';
+    const barWidth = innerWidth - 8;
+    const filledWidth = Math.floor(barWidth * 0.28);
+    const emptyWidth = barWidth - filledWidth;
+    const progressBar = '[' + '='.repeat(filledWidth) + ' '.repeat(emptyWidth) + ']';
 
-    // Continue button (centered, below link button)
-    const continueBtn = buildGenerateButtonLines('CONTINUE', '→');
+    y = 10;
+    const barX = 1 + Math.floor((innerWidth - progressBar.length) / 2);
+    pushTextOps(all, barX, y, progressBar);
+    pushTextOps(all, barX + progressBar.length - 4, y - 1, progressLabel);
+
+    // Continue button (centered, primary)
+    const continueBtn = buildGenerateButtonLines('CONTINUE', '->');
     const continueBtnX = 1 + Math.max(0, Math.floor((innerWidth - continueBtn.width) / 2));
     const continueBtnY = boxHeight - 6;
     for (let row = 0; row < continueBtn.lines.length; row++) {
@@ -122,20 +126,28 @@ export const DebriefView: React.FC<DebriefViewProps> = ({ onContinue, crtUiWarp2
       }
     }
 
-    // Hint at bottom
-    const hint = '[ENTER] CONTINUE';
-    const hintX = 1 + Math.max(0, Math.floor((innerWidth - hint.length) / 2));
-    pushTextOps(all, hintX, boxHeight - 2, hint);
+    // Article teaser + link (centered, secondary)
+    const teaserText = 'Feel that friction? So do agents.';
+    const teaserX = 1 + Math.max(0, Math.floor((innerWidth - teaserText.length) / 2));
+    pushTextOps(all, teaserX, boxHeight - 4, teaserText);
+
+    const articleLink = '[READ: WHAT IS AX?]';
+    const learnMoreX = 1 + Math.max(0, Math.floor((innerWidth - articleLink.length) / 2));
+    const learnMoreY = boxHeight - 2;
+    pushTextOps(all, learnMoreX, learnMoreY, articleLink);
 
     return {
       ops: all,
-      linkBtnX,
-      linkBtnWidth: linkBtn.width,
-      linkBtnY,
+      learnMoreX,
+      learnMoreWidth: articleLink.length,
+      teaserX,
+      teaserWidth: teaserText.length,
+      teaserY: boxHeight - 4,
+      learnMoreY,
       continueBtnX,
       continueBtnWidth: continueBtn.width,
       continueBtnY,
-      btnHeight: linkBtn.height,
+      btnHeight: continueBtn.height,
     };
   }, [boxWidth, boxHeight]);
 
@@ -148,7 +160,7 @@ export const DebriefView: React.FC<DebriefViewProps> = ({ onContinue, crtUiWarp2
       return;
     }
 
-    const char = PHASE1_ASCII[asciiVisibleChars];
+    const char = PHASE2_ASCII[asciiVisibleChars];
     let delay = 4;
     if (char === ' ') delay = 1;
     else if (char === '\n') delay = 8;
@@ -206,7 +218,7 @@ export const DebriefView: React.FC<DebriefViewProps> = ({ onContinue, crtUiWarp2
   }, [boxDone, onContinue]);
 
   const filterId = 'crtWarp2d-debrief';
-  const visibleAscii = PHASE1_ASCII.slice(0, asciiVisibleChars);
+  const visibleAscii = PHASE2_ASCII.slice(0, asciiVisibleChars);
   const canvasFontFamily =
     'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
 
@@ -229,17 +241,24 @@ export const DebriefView: React.FC<DebriefViewProps> = ({ onContinue, crtUiWarp2
     const charX = Math.floor(clickX / charWidth);
     const charY = Math.floor(clickY / charHeight);
 
-    // Check if click is within link button bounds
-    if (charY >= plan.linkBtnY && charY < plan.linkBtnY + plan.btnHeight) {
-      if (charX >= plan.linkBtnX && charX < plan.linkBtnX + plan.linkBtnWidth) {
+    // Check if click is within continue button bounds (primary action)
+    if (charY >= plan.continueBtnY && charY < plan.continueBtnY + plan.btnHeight) {
+      if (charX >= plan.continueBtnX && charX < plan.continueBtnX + plan.continueBtnWidth) {
+        onContinue();
+        return;
+      }
+    }
+    // Check if click is within teaser text bounds
+    if (charY === plan.teaserY) {
+      if (charX >= plan.teaserX && charX < plan.teaserX + plan.teaserWidth) {
         handleOpenDebrief();
         return;
       }
     }
-    // Check if click is within continue button bounds
-    if (charY >= plan.continueBtnY && charY < plan.continueBtnY + plan.btnHeight) {
-      if (charX >= plan.continueBtnX && charX < plan.continueBtnX + plan.continueBtnWidth) {
-        onContinue();
+    // Check if click is within article link bounds
+    if (charY === plan.learnMoreY) {
+      if (charX >= plan.learnMoreX && charX < plan.learnMoreX + plan.learnMoreWidth) {
+        handleOpenDebrief();
         return;
       }
     }

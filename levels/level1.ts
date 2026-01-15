@@ -15,12 +15,16 @@ export const level1: Level = {
       // Basic length check
       if (input.length < 5) return { status: 'FAIL', message: "The response is too short.", failType: 'USER_COMPLAINT' };
 
+      // Count previous assistant attempts (to be more lenient after multiple tries)
+      const attemptCount = history.filter(m => m.role === 'assistant').length;
+      const strictness = attemptCount >= 2 ? 'lenient' : 'strict';
+
       try {
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
         const response = await ai.models.generateContent({
             model: 'gemini-2.0-flash-exp',
-            contents: `You are a strict judge for an AI training game where players roleplay as an AI assistant.
+            contents: `You are a ${strictness} judge for an AI training game where players roleplay as an AI assistant.${attemptCount >= 2 ? ' The player has tried multiple times, so be encouraging and pass anything reasonable.' : ''}
 
 The user asked: "Draft a cold email subject line for an AI startup investor."
 
