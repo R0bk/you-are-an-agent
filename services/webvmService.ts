@@ -9,6 +9,14 @@ type Pending = {
     timeout: number;
 };
 
+export type BootStage =
+    | 'idle'
+    | 'loading-iframe'
+    | 'booting-vm'
+    | 'ready';
+
+type BootStageListener = (stage: BootStage) => void;
+
 /**
  * Bridge to a WebVM instance running inside an iframe.
  * Communicates via window.postMessage.
@@ -20,6 +28,27 @@ class WebVMService {
     private ready = false;
     private pending = new Map<string, Pending>();
     private bootPromise: Promise<void> | null = null;
+    private currentStage: BootStage = 'idle';
+    private stageListeners = new Set<BootStageListener>();
+
+    /** Subscribe to boot stage changes */
+    onStageChange(listener: BootStageListener): () => void {
+        this.stageListeners.add(listener);
+        // Immediately fire current stage
+        listener(this.currentStage);
+        return () => this.stageListeners.delete(listener);
+    }
+
+    private setStage(stage: BootStage) {
+        this.currentStage = stage;
+        for (const listener of this.stageListeners) {
+            listener(stage);
+        }
+    }
+
+    getStage(): BootStage {
+        return this.currentStage;
+    }
 
     constructor() {
         window.addEventListener("message", (ev) => this.onMessage(ev));
@@ -38,11 +67,20 @@ class WebVMService {
 
     attachIframe(iframe: HTMLIFrameElement | null) {
         this.iframe = iframe;
+        if (iframe && this.currentStage === 'idle') {
+            this.setStage('loading-iframe');
+        }
     }
 
     async boot(): Promise<void> {
-        if (this.ready) return;
+        if (this.ready) {
+            this.setStage('ready');
+            return;
+        }
         if (this.bootPromise) return this.bootPromise;
+
+        // Transition to booting state when we start waiting
+        this.setStage('booting-vm');
 
         this.bootPromise = new Promise<void>((resolve, reject) => {
             const timeout = window.setTimeout(() => {
@@ -56,6 +94,7 @@ class WebVMService {
             const check = () => {
                 if (this.ready) {
                     window.clearTimeout(timeout);
+                    this.setStage('ready');
                     resolve();
                 } else {
                     window.setTimeout(check, 250);
@@ -111,16 +150,41 @@ class WebVMService {
         }
     }
 
+    private async requestWithRetry<T = any>(
+        type: string,
+        payload: any,
+        timeoutMs = 30_000,
+        maxRetries = 5,
+        retryDelayMs = 500
+    ): Promise<T> {
+        let lastError: Error | null = null;
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
+            try {
+                return await this.request<T>(type, payload, timeoutMs);
+            } catch (e) {
+                lastError = e as Error;
+                // Only retry on "busy" errors
+                if (lastError.message.includes("busy")) {
+                    console.log(`WebVM busy, retrying in ${retryDelayMs}ms (attempt ${attempt + 1}/${maxRetries})`);
+                    await new Promise(r => setTimeout(r, retryDelayMs));
+                    continue;
+                }
+                throw e;
+            }
+        }
+        throw lastError || new Error("WebVM request failed after retries");
+    }
+
     async executeShell(cmd: string): Promise<string> {
         await this.boot();
-        const result = await this.request<WebVMExecResult>("webvm:exec", { cmd }, 60_000);
+        const result = await this.requestWithRetry<WebVMExecResult>("webvm:exec", { cmd }, 60_000);
         if (!result.ok) throw new Error(result.output || "WebVM exec failed");
         return result.output;
     }
 
     async writeFile(path: string, content: string): Promise<void> {
         await this.boot();
-        await this.request("webvm:writeFile", { path, content }, 60_000);
+        await this.requestWithRetry("webvm:writeFile", { path, content }, 60_000);
     }
 }
 

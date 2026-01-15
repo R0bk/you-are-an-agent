@@ -13,7 +13,7 @@ import { useTerminalWheelScrollStep } from './useTerminalWheelScrollStep';
 import { useThrottledScroll } from './useThrottledScroll';
 import { LevelCompleteOverlay } from './LevelCompleteOverlay';
 import { SafariWarningOverlay } from './SafariWarningOverlay';
-import { webvmService } from '../services/webvmService';
+import { webvmService, BootStage } from '../services/webvmService';
 import { WebVMFrame } from './WebVMFrame';
 import { CRTDisplacementMapDefs } from './CRTDisplacementMapDefs';
 
@@ -46,6 +46,8 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
   const [showSuccessOverlay, setShowSuccessOverlay] = useState(false);
   const [isBooting, setIsBooting] = useState(false);
   const [useWebVM, setUseWebVM] = useState(false);
+  const [bootStage, setBootStage] = useState<BootStage>('idle');
+  const [initProgress, setInitProgress] = useState(0);
   const [isLevelIntroAnimating, setIsLevelIntroAnimating] = useState(true);
   const [introCanvasText, setIntroCanvasText] = useState<string | undefined>(undefined);
   const [introBoxWidth, setIntroBoxWidth] = useState<number | undefined>(undefined);
@@ -114,12 +116,21 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
         if (level.id === 5) { // Level 5 uses WebVM
             setIsBooting(true);
             setUseWebVM(true);
+            setBootStage('idle');
+            setInitProgress(0);
+
+            // Subscribe to stage changes
+            const unsubscribe = webvmService.onStageChange(setBootStage);
+
             try {
                 // Give React a tick to mount the iframe before booting.
                 await new Promise(r => setTimeout(r, 0));
                 await webvmService.boot();
 
-                // Initialize the Python project files for level 4
+                // Give WebVM a moment to fully initialize before sending commands
+                await new Promise(r => setTimeout(r, 300));
+
+                // Initialize the Python project files for level 5
                 const billingPy = `def calculate_total(subtotal, tax_rate=0.1):
     """Calculate the total price including tax."""
     tax = subtotal * tax_rate
@@ -158,10 +169,16 @@ if __name__ == "__main__":
         sys.exit(1)
 `;
 
-                // Create src directory and write files
+                // Create src directory and write files with progress tracking
                 await webvmService.executeShell('mkdir -p src');
+                setInitProgress(33);
+
                 await webvmService.writeFile('src/billing.py', billingPy);
+                setInitProgress(66);
+
                 await webvmService.writeFile('run_tests.py', runTestsPy);
+                setInitProgress(100);
+
                 console.log("Level 5 project files initialized");
             } catch (e) {
                 console.error("WebVM boot failed", e);
@@ -169,6 +186,8 @@ if __name__ == "__main__":
         } else {
             setIsBooting(false);
             setUseWebVM(false);
+            setBootStage('idle');
+            setInitProgress(0);
         }
 
         setInput('');
@@ -467,7 +486,16 @@ if __name__ == "__main__":
 
   return (
     <>
-    {isBooting && <BootSequence onComplete={handleBootComplete} />}
+    {isBooting && (
+      <BootSequence
+        onComplete={handleBootComplete}
+        stage={bootStage}
+        initProgress={initProgress}
+        filterStyle={crtUiWarp2d > 0 ? {
+          filter: `url(#${isSafari ? `crtWarp2d-${filterNonce}` : 'crtWarp2d'})`,
+        } : undefined}
+      />
+    )}
 
     {/* SVG filter definition - rendered here to access scroll info for alignment */}
     {/* Use unique ID on Safari to bypass compositor cache */}

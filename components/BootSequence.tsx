@@ -1,122 +1,196 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { BootStage } from '../services/webvmService';
 
 interface BootSequenceProps {
   onComplete: () => void;
+  stage: BootStage;
+  initProgress?: number; // 0-100 for file initialization progress
+  filterStyle?: React.CSSProperties;
 }
 
-const BOOT_LOGS = [
-  ":: Running early hook [udev]",
-  ":: Running hook [udev]",
-  ":: Triggering uevents...",
-  ":: Performing fsck on /dev/sda1...",
-  ":: Mounting '/dev/sda1' on real root...",
-  ":: Running late hook [usr]",
-  ":: Running cleanup hook [shutdown]",
-  ":: Passing control to systemd...",
-  "[  OK  ] Created slice system-getty.slice.",
-  "[  OK  ] Created slice system-modprobe.slice.",
-  "[  OK  ] Created slice system-systemd\\x2djournal.slice.",
-  "[  OK  ] Created slice system-systemd\\x2dlogind.slice.",
-  "[  OK  ] Started Dispatch Password Requests to Console Directory Watch.",
-  "[  OK  ] Reached target Local Encrypted Volumes.",
-  "[  OK  ] Reached target Paths.",
-  "[  OK  ] Reached target Remote File Systems.",
-  "[  OK  ] Reached target Slices.",
-  "[  OK  ] Reached target Swap.",
-  "[  OK  ] Listening on Journal Socket.",
-  "[  OK  ] Listening on Network Service Netlink Socket.",
-  "[  OK  ] Listening on udev Control Socket.",
-  "[  OK  ] Listening on udev Kernel Socket.",
-  "[  OK  ] Started Journal Service.",
-  "[  OK  ] Started udev Coldplug all Devices.",
-  "         Mounting Kernel Configuration File System...",
-  "[  OK  ] Mounted Kernel Configuration File System.",
-  "[  OK  ] Reached target System Initialization.",
-  "[  OK  ] Started Daily Cleanup of Temporary Directories.",
-  "[  OK  ] Started Network Service.",
-  "[  OK  ] Reached target Network.",
-  "[  OK  ] Started User Login Management.",
-  "[  OK  ] Reached target Multi-User System.",
-  "[  OK  ] Reached target Graphical Interface.",
-  "",
-  "Arch Linux 6.6.7-arch1-1 (tty1)",
-  "",
-  "agent-arch login: agent",
-  "Password: ",
-  "",
-  "Last login: Mon Jan 01 09:00:00 2024 on tty1",
-  "[agent@agent-arch ~]$ "
-];
+// Stage metadata
+const STAGE_INFO: Record<BootStage, { label: string; percent: number; logs: string[] }> = {
+  'idle': {
+    label: 'Initializing...',
+    percent: 0,
+    logs: ['Preparing environment...'],
+  },
+  'loading-iframe': {
+    label: 'Loading VM Image',
+    percent: 15,
+    logs: [
+      ':: Loading VM image...',
+      ':: Mounting virtual filesystem...',
+    ],
+  },
+  'booting-vm': {
+    label: 'Booting WebVM',
+    percent: 40,
+    logs: [
+      ':: Running early hook [udev]',
+      ':: Triggering uevents...',
+      ':: Performing fsck on /dev/sda1...',
+      ':: Mounting \'/dev/sda1\' on real root...',
+      ':: Passing control to systemd...',
+      '[  OK  ] Started Journal Service.',
+      '[  OK  ] Started Network Service.',
+      '[  OK  ] Reached target Multi-User System.',
+    ],
+  },
+  'ready': {
+    label: 'VM Ready',
+    percent: 70,
+    logs: [
+      '[  OK  ] Reached target Graphical Interface.',
+      '',
+      'Arch Linux 6.6.7-arch1-1 (tty1)',
+      '',
+      'agent-arch login: agent',
+      'Password: ********',
+      '',
+      'Last login: Mon Jan 01 09:00:00 2024 on tty1',
+      '[agent@agent-arch ~]$ ',
+    ],
+  },
+};
 
-export const BootSequence: React.FC<BootSequenceProps> = ({ onComplete }) => {
-  const [lines, setLines] = useState<string[]>([]);
+export const BootSequence: React.FC<BootSequenceProps> = ({ onComplete, stage, initProgress = 0, filterStyle }) => {
+  const [displayedLogs, setDisplayedLogs] = useState<string[]>([]);
+  const [currentStageIndex, setCurrentStageIndex] = useState(0);
+  const [logIndex, setLogIndex] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const stageOrder: BootStage[] = ['idle', 'loading-iframe', 'booting-vm', 'ready'];
 
+  // Calculate total progress
+  // Stage progress (0-70%) + init progress (70-100%)
+  const stageIdx = stageOrder.indexOf(stage);
+  const basePercent = STAGE_INFO[stage].percent;
+  const initContribution = stage === 'ready' ? (initProgress * 0.3) : 0; // 30% for init
+  const totalProgress = Math.min(100, basePercent + initContribution);
+
+  // Track which stage we're showing logs for
   useEffect(() => {
-    let lineIndex = 0;
-    const timeouts: NodeJS.Timeout[] = [];
+    const idx = stageOrder.indexOf(stage);
+    if (idx > currentStageIndex) {
+      setCurrentStageIndex(idx);
+      setLogIndex(0);
+    }
+  }, [stage, currentStageIndex]);
 
-    const addLine = () => {
-      // Safety check for index bounds
-      if (lineIndex < BOOT_LOGS.length) {
-        const currentLine = BOOT_LOGS[lineIndex];
-        
-        // Ensure we are adding a valid string, even if empty
-        if (currentLine !== undefined) {
-             setLines(prev => [...prev, currentLine]);
-        }
-        
-        // Varying speeds for realism
-        let delay = 20; // Fast text for Arch
-        if (currentLine && currentLine.startsWith("::")) delay = 50; 
-        if (currentLine && currentLine.includes("[  OK  ]")) delay = 40; 
-        if (currentLine === "") delay = 400; 
-        if (currentLine && currentLine.includes("login:")) delay = 800;
-        
-        lineIndex++;
-        const t = setTimeout(addLine, delay);
-        timeouts.push(t);
-      } else {
-        setTimeout(onComplete, 500);
-      }
-    };
+  // Animate logs for the current stage
+  useEffect(() => {
+    if (stage === 'idle') return;
 
-    addLine();
+    const logs = STAGE_INFO[stage].logs;
+    if (logIndex >= logs.length) return;
 
-    return () => timeouts.forEach(clearTimeout);
-  }, [onComplete]);
+    const delay = logs[logIndex] === '' ? 200 :
+                  logs[logIndex].startsWith('::') ? 80 :
+                  logs[logIndex].startsWith('[  OK  ]') ? 60 : 40;
+
+    const timer = setTimeout(() => {
+      setDisplayedLogs(prev => [...prev, logs[logIndex]]);
+      setLogIndex(i => i + 1);
+    }, delay);
+
+    return () => clearTimeout(timer);
+  }, [stage, logIndex]);
+
+  // When init is complete (100%), call onComplete after a short delay
+  useEffect(() => {
+    if (stage === 'ready' && initProgress >= 100) {
+      const timer = setTimeout(onComplete, 600);
+      return () => clearTimeout(timer);
+    }
+  }, [stage, initProgress, onComplete]);
 
   // Auto scroll
   useEffect(() => {
     if (scrollRef.current) {
-        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [lines]);
+  }, [displayedLogs]);
+
+  // Current status text
+  const statusText = stage === 'ready'
+    ? (initProgress < 100 ? 'Initializing project files...' : 'Ready!')
+    : STAGE_INFO[stage].label;
 
   return (
-    <div className="fixed inset-0 bg-black z-50 p-4 md:p-8 font-mono text-sm md:text-base text-zinc-400 overflow-hidden">
-      <div ref={scrollRef} className="h-full w-full overflow-y-auto no-scrollbar">
-        {lines.map((line, i) => {
-            // Guard against unexpected undefined lines during renders
+    <div className="fixed inset-0 bg-terminal-bg z-40 flex flex-col font-mono">
+      {/* Main content with same padding as TerminalLevelIntro */}
+      <div
+        ref={scrollRef}
+        className="flex-1 min-h-0 overflow-y-auto p-4 lg:pt-16 lg:pb-16 pt-8 pb-8 crt-scroll-fade"
+        style={filterStyle}
+      >
+        {/* Centered container matching SimulationView layout */}
+        <div className="w-full max-w-7xl mx-auto">
+        {/* Header - matching game header style */}
+        <div className="mb-4">
+          <span className="text-terminal-green font-bold tracking-widest uppercase text-[10px]">
+            WebVM // Arch Linux
+          </span>
+        </div>
+
+        {/* Progress section */}
+        <div className="mb-6 max-w-md">
+          <div className="flex justify-between text-xs mb-2">
+            <span className="text-terminal-green uppercase tracking-wider">{statusText}</span>
+            <span className="text-zinc-500">{Math.round(totalProgress)}%</span>
+          </div>
+
+          {/* Progress bar */}
+          <div className="h-1 bg-zinc-800 overflow-hidden">
+            <div
+              className="h-full bg-terminal-green transition-all duration-300 ease-out"
+              style={{ width: `${totalProgress}%` }}
+            />
+          </div>
+
+          {/* Stage indicators */}
+          <div className="flex justify-between mt-2 text-[10px] text-zinc-600 uppercase tracking-wider">
+            <span className={stageIdx >= 1 ? 'text-terminal-green' : ''}>Load</span>
+            <span className={stageIdx >= 2 ? 'text-terminal-green' : ''}>Boot</span>
+            <span className={stageIdx >= 3 ? 'text-terminal-green' : ''}>Ready</span>
+            <span className={stage === 'ready' && initProgress >= 100 ? 'text-terminal-green' : ''}>Init</span>
+          </div>
+        </div>
+
+        {/* Log output - matching terminal text style */}
+        <div className="text-sm text-zinc-400 space-y-0">
+          {displayedLogs.map((line, i) => {
             if (line === undefined || line === null) return <div key={i} className="h-4" />;
-            
+
             return (
-                <div key={i} className="whitespace-pre-wrap break-words">
-                    {line.startsWith("[  OK  ]") ? (
-                        <span>
-                            [  <span className="text-terminal-green">OK</span>  ]{line.substring(8)}
-                        </span>
-                    ) : (
-                        line
-                    )}
-                </div>
+              <div key={i} className="whitespace-pre-wrap break-words leading-relaxed">
+                {line.startsWith('[  OK  ]') ? (
+                  <span>
+                    [  <span className="text-terminal-green">OK</span>  ]{line.substring(8)}
+                  </span>
+                ) : line.startsWith('::') ? (
+                  <span className="text-zinc-500">{line}</span>
+                ) : (
+                  line
+                )}
+              </div>
             );
-        })}
-        <div className="h-20"></div> {/* Buffer */}
+          })}
+
+          {/* Show initialization progress when in ready stage */}
+          {stage === 'ready' && initProgress > 0 && initProgress < 100 && (
+            <div className="mt-2 text-terminal-yellow">
+              Initializing project files... {Math.round(initProgress)}%
+            </div>
+          )}
+          {stage === 'ready' && initProgress >= 100 && (
+            <div className="mt-2">
+              [  <span className="text-terminal-green">OK</span>  ] Project files initialized.
+            </div>
+          )}
+        </div>
+        </div>{/* Close max-w-7xl container */}
       </div>
-      
-      {/* Scanline effect overlay */}
-      <div className="absolute inset-0 bg-[linear-gradient(rgba(18,18,18,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[size:100%_4px,3px_100%] pointer-events-none"></div>
     </div>
   );
 };
