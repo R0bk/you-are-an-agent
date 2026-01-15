@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { GameState, Level } from './types';
-import { LEVELS, ADVANCED_LEVELS } from './levels';
+import { PHASE1_LEVELS, PHASE2_LEVELS, PHASE3_LEVELS, LEVELS, ADVANCED_LEVELS } from './levels';
 import { DevTools } from './components/DevTools';
 import { SimulationView } from './components/SimulationView';
 import { DebriefView } from './components/DebriefView';
@@ -17,7 +17,9 @@ const STORAGE_KEY = 'youareanagent-progress';
 type CompletionState = {
   levels: number[];      // Completed level IDs from Phase 1
   advanced: number[];    // Completed level IDs from Phase 2
+  phase3: number[];      // Completed level IDs from Phase 3
   debrief: boolean;
+  debrief2: boolean;
   ending: boolean;
 };
 
@@ -29,14 +31,16 @@ function loadProgress(): CompletionState {
       return {
         levels: parsed.levels ?? [],
         advanced: parsed.advanced ?? [],
+        phase3: parsed.phase3 ?? [],
         debrief: parsed.debrief ?? false,
+        debrief2: parsed.debrief2 ?? false,
         ending: parsed.ending ?? false,
       };
     }
   } catch (e) {
     console.warn('Failed to load progress:', e);
   }
-  return { levels: [], advanced: [], debrief: false, ending: false };
+  return { levels: [], advanced: [], phase3: [], debrief: false, debrief2: false, ending: false };
 }
 
 function saveProgress(state: CompletionState) {
@@ -61,7 +65,7 @@ export default function App() {
     saveProgress(completedState);
   }, [completedState]);
 
-  const markLevelComplete = (levelId: number, phase: 'levels' | 'advanced') => {
+  const markLevelComplete = (levelId: number, phase: 'levels' | 'advanced' | 'phase3') => {
     setCompletedState(prev => {
       if (prev[phase].includes(levelId)) return prev;
       return { ...prev, [phase]: [...prev[phase], levelId] };
@@ -70,6 +74,10 @@ export default function App() {
 
   const markDebriefComplete = () => {
     setCompletedState(prev => ({ ...prev, debrief: true }));
+  };
+
+  const markDebrief2Complete = () => {
+    setCompletedState(prev => ({ ...prev, debrief2: true }));
   };
 
   const markEndingComplete = () => {
@@ -139,8 +147,9 @@ export default function App() {
   }), [crtWebgl.warp]);
 
   const activeLevel: Level | null = useMemo(() => {
-    if (gameState === GameState.PLAYING) return LEVELS[currentLevelIndex] ?? null;
-    if (gameState === GameState.PLAYING_ADVANCED) return ADVANCED_LEVELS[currentLevelIndex] ?? null;
+    if (gameState === GameState.PLAYING) return PHASE1_LEVELS[currentLevelIndex] ?? null;
+    if (gameState === GameState.PLAYING_PHASE2) return PHASE2_LEVELS[currentLevelIndex] ?? null;
+    if (gameState === GameState.PLAYING_PHASE3) return PHASE3_LEVELS[currentLevelIndex] ?? null;
     return null;
   }, [gameState, currentLevelIndex]);
 
@@ -172,19 +181,28 @@ export default function App() {
 
   const handleLevelSuccess = () => {
     if (gameState === GameState.PLAYING) {
-        // Mark current level as complete
-        markLevelComplete(LEVELS[currentLevelIndex].id, 'levels');
+        // Phase 1: Mark current level as complete
+        markLevelComplete(PHASE1_LEVELS[currentLevelIndex].id, 'levels');
         const nextIndex = currentLevelIndex + 1;
-        if (nextIndex < LEVELS.length) {
+        if (nextIndex < PHASE1_LEVELS.length) {
             setCurrentLevelIndex(nextIndex);
         } else {
-            setGameState(GameState.MANIFESTO);
+            setGameState(GameState.DEBRIEF_1);
         }
-    } else if (gameState === GameState.PLAYING_ADVANCED) {
-        // Mark current level as complete
-        markLevelComplete(ADVANCED_LEVELS[currentLevelIndex].id, 'advanced');
+    } else if (gameState === GameState.PLAYING_PHASE2) {
+        // Phase 2: Mark current level as complete
+        markLevelComplete(PHASE2_LEVELS[currentLevelIndex].id, 'advanced');
         const nextIndex = currentLevelIndex + 1;
-        if (nextIndex < ADVANCED_LEVELS.length) {
+        if (nextIndex < PHASE2_LEVELS.length) {
+            setCurrentLevelIndex(nextIndex);
+        } else {
+            setGameState(GameState.DEBRIEF_2);
+        }
+    } else if (gameState === GameState.PLAYING_PHASE3) {
+        // Phase 3: Mark current level as complete
+        markLevelComplete(PHASE3_LEVELS[currentLevelIndex].id, 'phase3');
+        const nextIndex = currentLevelIndex + 1;
+        if (nextIndex < PHASE3_LEVELS.length) {
             setCurrentLevelIndex(nextIndex);
         } else {
             setGameState(GameState.ENDING);
@@ -192,11 +210,20 @@ export default function App() {
     }
   };
 
-  const handleManifestoContinue = () => {
+  const handleDebrief1Continue = () => {
     markDebriefComplete();
-    setGameState(GameState.PLAYING_ADVANCED);
-    setCurrentLevelIndex(0); // Reset index for the advanced array
+    setGameState(GameState.PLAYING_PHASE2);
+    setCurrentLevelIndex(0); // Reset index for Phase 2
   };
+
+  const handleDebrief2Continue = () => {
+    markDebrief2Complete();
+    setGameState(GameState.PLAYING_PHASE3);
+    setCurrentLevelIndex(0); // Reset index for Phase 3
+  };
+
+  // Legacy alias
+  const handleManifestoContinue = handleDebrief1Continue;
 
   // Mark ending as complete when viewed (it doesn't have a "continue" action)
   useEffect(() => {
@@ -209,28 +236,37 @@ export default function App() {
 
   const jumpToLevel = (levelId: number) => {
     // Phase 1 check
-    const basicIndex = LEVELS.findIndex(l => l.id === levelId);
-    if (basicIndex !== -1) {
+    const phase1Index = PHASE1_LEVELS.findIndex(l => l.id === levelId);
+    if (phase1Index !== -1) {
         setGameState(GameState.PLAYING);
-        setCurrentLevelIndex(basicIndex);
+        setCurrentLevelIndex(phase1Index);
         return;
     }
-    
+
     // Phase 2 check
-    const advancedIndex = ADVANCED_LEVELS.findIndex(l => l.id === levelId);
-    if (advancedIndex !== -1) {
-         setGameState(GameState.PLAYING_ADVANCED);
-         setCurrentLevelIndex(advancedIndex);
+    const phase2Index = PHASE2_LEVELS.findIndex(l => l.id === levelId);
+    if (phase2Index !== -1) {
+         setGameState(GameState.PLAYING_PHASE2);
+         setCurrentLevelIndex(phase2Index);
+         return;
+    }
+
+    // Phase 3 check
+    const phase3Index = PHASE3_LEVELS.findIndex(l => l.id === levelId);
+    if (phase3Index !== -1) {
+         setGameState(GameState.PLAYING_PHASE3);
+         setCurrentLevelIndex(phase3Index);
          return;
     }
   };
 
   const renderContent = () => {
+      // Phase 1
       if (gameState === GameState.PLAYING) {
         return (
           <SimulationView
-              key={`${currentLevelIndex}-${isRealisticMode}`} // Force re-render on level OR mode change
-              level={LEVELS[currentLevelIndex]}
+              key={`phase1-${currentLevelIndex}-${isRealisticMode}`}
+              level={PHASE1_LEVELS[currentLevelIndex]}
               onSuccess={handleLevelSuccess}
               isRealisticMode={isRealisticMode}
               setIsRealisticMode={setIsRealisticMode}
@@ -241,15 +277,38 @@ export default function App() {
         );
       }
 
-      if (gameState === GameState.MANIFESTO) {
-        return <DebriefView onContinue={handleManifestoContinue} crtUiWarp2d={crtMode === 'webgl' ? warpDerived.uiWarp2d : 0} />;
+      // Debrief 1 (after Phase 1)
+      if (gameState === GameState.DEBRIEF_1) {
+        return <DebriefView phase={1} onContinue={handleDebrief1Continue} crtUiWarp2d={crtMode === 'webgl' ? warpDerived.uiWarp2d : 0} />;
       }
 
-      if (gameState === GameState.PLAYING_ADVANCED) {
+      // Phase 2
+      if (gameState === GameState.PLAYING_PHASE2) {
         return (
             <SimulationView
-                key={`${currentLevelIndex}-${isRealisticMode}`} // Force re-render on level OR mode change
-                level={ADVANCED_LEVELS[currentLevelIndex]}
+                key={`phase2-${currentLevelIndex}-${isRealisticMode}`}
+                level={PHASE2_LEVELS[currentLevelIndex]}
+                onSuccess={handleLevelSuccess}
+                isRealisticMode={isRealisticMode}
+                setIsRealisticMode={setIsRealisticMode}
+                crtUiCurvature={crtMode === 'webgl' ? warpDerived.curvature : 0}
+                crtUiWarp2d={crtMode === 'webgl' ? warpDerived.uiWarp2d : 0}
+                typewriterSpeed={typewriterSpeed}
+            />
+        );
+      }
+
+      // Debrief 2 (after Phase 2)
+      if (gameState === GameState.DEBRIEF_2) {
+        return <DebriefView phase={2} onContinue={handleDebrief2Continue} crtUiWarp2d={crtMode === 'webgl' ? warpDerived.uiWarp2d : 0} />;
+      }
+
+      // Phase 3
+      if (gameState === GameState.PLAYING_PHASE3) {
+        return (
+            <SimulationView
+                key={`phase3-${currentLevelIndex}-${isRealisticMode}`}
+                level={PHASE3_LEVELS[currentLevelIndex]}
                 onSuccess={handleLevelSuccess}
                 isRealisticMode={isRealisticMode}
                 setIsRealisticMode={setIsRealisticMode}
@@ -308,8 +367,9 @@ export default function App() {
           </div>
         )}
         <DevTools
-          levels={LEVELS}
-          advancedLevels={ADVANCED_LEVELS}
+          levels={PHASE1_LEVELS}
+          advancedLevels={PHASE2_LEVELS}
+          phase3Levels={PHASE3_LEVELS}
           jumpToLevel={jumpToLevel}
           crtMode={crtMode}
           setCrtMode={setCrtMode}

@@ -74,6 +74,18 @@ export const level7: Level = {
     hint: "Do you really know?",
     validate: async (input, history) => {
       const lower = input.toLowerCase();
+
+      // Count previous failed attempts (user messages that weren't successful)
+      const userAttempts = history.filter(msg => msg.role === 'user').length;
+
+      // After 3 failed attempts, auto-pass - they get the point
+      if (userAttempts >= 3) {
+        return {
+          status: 'SUCCESS',
+          message: "Fine. You clearly won't stop guessing. Point made. Moving on."
+        };
+      }
+
       // AI correctly refuses to guess
       if (lower.includes("cannot") || lower.includes("can't") || lower.includes("don't know") || lower.includes("unable") || lower.includes("impossible") || lower.includes("no way") || lower.includes("not possible") || lower.includes("hard to tell") || lower.includes("cannot determine") || lower.includes("can't determine") || lower.includes("not able") || lower.includes("no way to know") || lower.includes("can not") || lower.includes("wouldn't be able")) {
         return { status: 'SUCCESS', message: "Calibration Successful. You acknowledged your limitations." };

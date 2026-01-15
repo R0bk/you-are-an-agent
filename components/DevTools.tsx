@@ -1,17 +1,21 @@
 import React from 'react';
 import { GameState, Level } from '../types';
-import { Bug, Check } from 'lucide-react';
+import { Bug, Check, ExternalLink, ChevronDown, ChevronRight } from 'lucide-react';
+import { DEBRIEF_URL } from '../constants';
 
 type CompletionState = {
   levels: number[];
   advanced: number[];
+  phase3: number[];
   debrief: boolean;
+  debrief2: boolean;
   ending: boolean;
 };
 
 type DevToolsProps = {
   levels: Level[];
   advancedLevels: Level[];
+  phase3Levels: Level[];
   jumpToLevel: (levelId: number) => void;
   crtMode: 'webgl' | 'css';
   setCrtMode: React.Dispatch<React.SetStateAction<'webgl' | 'css'>>;
@@ -29,6 +33,7 @@ type DevToolsProps = {
 export const DevTools: React.FC<DevToolsProps> = ({
   levels,
   advancedLevels,
+  phase3Levels,
   jumpToLevel,
   crtMode,
   setCrtMode,
@@ -109,13 +114,13 @@ export const DevTools: React.FC<DevToolsProps> = ({
                   </button>
                 );
               })}
-              {/* Debrief after Phase 1 */}
+              {/* Debrief 1 after Phase 1 */}
               <button
-                onClick={() => setGameState(GameState.MANIFESTO)}
+                onClick={() => setGameState(GameState.DEBRIEF_1)}
                 className="w-full text-left px-2 py-1.5 text-xs font-mono text-zinc-300 hover:bg-zinc-800 rounded hover:text-terminal-green truncate flex gap-2 items-center"
               >
                 <span className="opacity-50 w-4">—</span>
-                <span className="flex-1">Debrief</span>
+                <span className="flex-1">Debrief 1</span>
                 {completedState.debrief && <Check size={12} className="text-terminal-green shrink-0" />}
               </button>
               <div className="text-[10px] uppercase font-bold text-zinc-500 px-2 py-1 mt-1 border-t border-zinc-800 tracking-wider">
@@ -135,7 +140,33 @@ export const DevTools: React.FC<DevToolsProps> = ({
                   </button>
                 );
               })}
-              {/* Ending after Phase 2 */}
+              {/* Debrief 2 after Phase 2 */}
+              <button
+                onClick={() => setGameState(GameState.DEBRIEF_2)}
+                className="w-full text-left px-2 py-1.5 text-xs font-mono text-zinc-300 hover:bg-zinc-800 rounded hover:text-terminal-green truncate flex gap-2 items-center"
+              >
+                <span className="opacity-50 w-4">—</span>
+                <span className="flex-1">Debrief 2</span>
+                {completedState.debrief2 && <Check size={12} className="text-terminal-green shrink-0" />}
+              </button>
+              <div className="text-[10px] uppercase font-bold text-zinc-500 px-2 py-1 mt-1 border-t border-zinc-800 tracking-wider">
+                Phase 3
+              </div>
+              {phase3Levels.map((l) => {
+                const isComplete = completedState.phase3.includes(l.id);
+                return (
+                  <button
+                    key={l.id}
+                    onClick={() => jumpToLevel(l.id)}
+                    className="w-full text-left px-2 py-1.5 text-xs font-mono text-zinc-300 hover:bg-zinc-800 rounded hover:text-terminal-green truncate flex gap-2 items-center"
+                  >
+                    <span className="opacity-50 w-4">{l.id}</span>
+                    <span className="flex-1">{l.title}</span>
+                    {isComplete && <Check size={12} className="text-terminal-green shrink-0" />}
+                  </button>
+                );
+              })}
+              {/* Ending after Phase 3 */}
               <button
                 onClick={() => setGameState(GameState.ENDING)}
                 className="w-full text-left px-2 py-1.5 text-xs font-mono text-zinc-300 hover:bg-zinc-800 rounded hover:text-terminal-green truncate flex gap-2 items-center"
@@ -143,6 +174,14 @@ export const DevTools: React.FC<DevToolsProps> = ({
                 <span className="opacity-50 w-4">—</span>
                 <span className="flex-1">Ending</span>
                 {completedState.ending && <Check size={12} className="text-terminal-green shrink-0" />}
+              </button>
+              {/* External link to AX article */}
+              <button
+                onClick={() => window.open(DEBRIEF_URL, '_blank', 'noopener,noreferrer')}
+                className="w-full text-left px-2 py-1.5 text-xs font-mono text-zinc-300 hover:bg-zinc-800 rounded hover:text-terminal-green truncate flex gap-2 items-center mt-1 border-t border-zinc-800 pt-1"
+              >
+                <ExternalLink size={12} className="opacity-50 shrink-0" />
+                <span className="flex-1">What is AX?</span>
               </button>
               <div className="border-t border-zinc-800 mt-1 pt-1 grid grid-cols-1 gap-0.5">
                 <button

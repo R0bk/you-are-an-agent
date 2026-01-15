@@ -1,8 +1,13 @@
 export enum GameState {
-  PLAYING = 'PLAYING',
-  MANIFESTO = 'MANIFESTO', // Debrief screen between phases
-  PLAYING_ADVANCED = 'PLAYING_ADVANCED',
-  ENDING = 'ENDING'
+  PLAYING = 'PLAYING',           // Phase 1: Basic tool calling (levels 1-2)
+  DEBRIEF_1 = 'DEBRIEF_1',       // Debrief after Phase 1
+  PLAYING_PHASE2 = 'PLAYING_PHASE2', // Phase 2: Desktop/VM (levels 3-5)
+  DEBRIEF_2 = 'DEBRIEF_2',       // Debrief after Phase 2
+  PLAYING_PHASE3 = 'PLAYING_PHASE3', // Phase 3: Advanced (levels 6-7)
+  ENDING = 'ENDING',
+  // Legacy aliases for backward compatibility
+  MANIFESTO = 'DEBRIEF_1',
+  PLAYING_ADVANCED = 'PLAYING_PHASE2',
 }
 
 export enum MessageType {

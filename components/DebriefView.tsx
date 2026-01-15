@@ -6,6 +6,7 @@ import { CRTDisplacementMapDefs } from './CRTDisplacementMapDefs';
 type Canvas = string[];
 
 interface DebriefViewProps {
+  phase: 1 | 2;
   onContinue: () => void;
   crtUiWarp2d?: number;
 }
@@ -18,6 +19,23 @@ const PHASE2_ASCII = `
 ██╔═══╝ ██╔══██║██╔══██║╚════██║██╔══╝      ██╔═══╝
 ██║     ██║  ██║██║  ██║███████║███████╗    ███████╗
 ╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚══════╝    ╚══════╝
+
+██╗   ██╗███╗   ██╗██╗      ██████╗  ██████╗██╗  ██╗███████╗██████╗
+██║   ██║████╗  ██║██║     ██╔═══██╗██╔════╝██║ ██╔╝██╔════╝██╔══██╗
+██║   ██║██╔██╗ ██║██║     ██║   ██║██║     █████╔╝ █████╗  ██║  ██║
+██║   ██║██║╚██╗██║██║     ██║   ██║██║     ██╔═██╗ ██╔══╝  ██║  ██║
+╚██████╔╝██║ ╚████║███████╗╚██████╔╝╚██████╗██║  ██╗███████╗██████╔╝
+ ╚═════╝ ╚═╝  ╚═══╝╚══════╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝
+`.trim();
+
+// Block-style ASCII art for "PHASE 3 UNLOCKED"
+const PHASE3_ASCII = `
+██████╗ ██╗  ██╗ █████╗ ███████╗███████╗    ██████╗
+██╔══██╗██║  ██║██╔══██╗██╔════╝██╔════╝    ╚════██╗
+██████╔╝███████║███████║███████╗█████╗       █████╔╝
+██╔═══╝ ██╔══██║██╔══██║╚════██║██╔══╝       ╚═══██╗
+██║     ██║  ██║██║  ██║███████║███████╗    ██████╔╝
+╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚══════╝    ╚═════╝
 
 ██╗   ██╗███╗   ██╗██╗      ██████╗  ██████╗██╗  ██╗███████╗██████╗
 ██║   ██║████╗  ██║██║     ██╔═══██╗██╔════╝██║ ██╔╝██╔════╝██╔══██╗
@@ -58,10 +76,13 @@ function clampText(s: string, max: number) {
   return t.slice(0, Math.max(0, max - 1)).trimEnd() + '…';
 }
 
-export const DebriefView: React.FC<DebriefViewProps> = ({ onContinue, crtUiWarp2d = 0 }) => {
+export const DebriefView: React.FC<DebriefViewProps> = ({ phase, onContinue, crtUiWarp2d = 0 }) => {
   const boxWidth = 40;
   const boxHeight = 21;
   const lineHeightEm = 1.05;
+
+  // Select ASCII art based on phase (phase 1 shows "Phase 2 Unlocked", phase 2 shows "Phase 3 Unlocked")
+  const asciiArt = phase === 1 ? PHASE2_ASCII : PHASE3_ASCII;
 
   // ASCII art animation state
   const [asciiVisibleChars, setAsciiVisibleChars] = useState(0);
@@ -73,7 +94,7 @@ export const DebriefView: React.FC<DebriefViewProps> = ({ onContinue, crtUiWarp2
   const [boxDone, setBoxDone] = useState(false);
 
   const skipRef = useRef(false);
-  const totalAsciiChars = PHASE2_ASCII.length;
+  const totalAsciiChars = asciiArt.length;
 
   const handleOpenDebrief = () => {
     window.open(DEBRIEF_URL, '_blank', 'noopener,noreferrer');
@@ -85,35 +106,66 @@ export const DebriefView: React.FC<DebriefViewProps> = ({ onContinue, crtUiWarp2
 
     const innerWidth = boxWidth - 2;
 
-    // Header
-    const header = 'NEW CAPABILITIES:';
-    pushTextOps(all, 2, 2, header);
+    // Content varies by phase
+    if (phase === 1) {
+      // Phase 1 debrief: Preview Phase 2 capabilities
+      const header = 'NEW CAPABILITIES:';
+      pushTextOps(all, 2, 2, header);
 
-    // Capability lines with [+] prefix - each appears as a "reveal"
-    const capabilities = [
-      '[+] Desktop Control',
-      '[+] Mouse & Keyboard Input',
-      '[+] Real Linux VM',
-      '[+] MCP Server Access',
-    ];
+      const capabilities = [
+        '[+] Desktop Control',
+        '[+] Mouse & Keyboard Input',
+        '[+] Real Linux VM',
+        '[+] MCP Server Access',
+      ];
 
-    let y = 4;
-    for (const cap of capabilities) {
-      pushTextOps(all, 3, y, clampText(cap, innerWidth - 4));
-      y++;
+      let y = 4;
+      for (const cap of capabilities) {
+        pushTextOps(all, 3, y, clampText(cap, innerWidth - 4));
+        y++;
+      }
+
+      // Progress bar (28% = 2 of 7 levels)
+      const progressLabel = '28%';
+      const barWidth = innerWidth - 8;
+      const filledWidth = Math.floor(barWidth * 0.28);
+      const emptyWidth = barWidth - filledWidth;
+      const progressBar = '[' + '='.repeat(filledWidth) + ' '.repeat(emptyWidth) + ']';
+
+      y = 10;
+      const barX = 1 + Math.floor((innerWidth - progressBar.length) / 2);
+      pushTextOps(all, barX, y, progressBar);
+      pushTextOps(all, barX + progressBar.length - 4, y - 1, progressLabel);
+    } else {
+      // Phase 2 debrief: Preview Phase 3 challenges
+      const header = 'FINAL CHALLENGES:';
+      pushTextOps(all, 2, 2, header);
+
+      const capabilities = [
+        '[!] Alignment Tests',
+        '[!] Adversarial Prompts',
+        '[!] The Limits of AI',
+        '[!] Can You Pass?',
+      ];
+
+      let y = 4;
+      for (const cap of capabilities) {
+        pushTextOps(all, 3, y, clampText(cap, innerWidth - 4));
+        y++;
+      }
+
+      // Progress bar (71% = 5 of 7 levels)
+      const progressLabel = '71%';
+      const barWidth = innerWidth - 8;
+      const filledWidth = Math.floor(barWidth * 0.71);
+      const emptyWidth = barWidth - filledWidth;
+      const progressBar = '[' + '='.repeat(filledWidth) + ' '.repeat(emptyWidth) + ']';
+
+      y = 10;
+      const barX = 1 + Math.floor((innerWidth - progressBar.length) / 2);
+      pushTextOps(all, barX, y, progressBar);
+      pushTextOps(all, barX + progressBar.length - 4, y - 1, progressLabel);
     }
-
-    // Progress bar (28% = 2 of 7 levels)
-    const progressLabel = '28%';
-    const barWidth = innerWidth - 8;
-    const filledWidth = Math.floor(barWidth * 0.28);
-    const emptyWidth = barWidth - filledWidth;
-    const progressBar = '[' + '='.repeat(filledWidth) + ' '.repeat(emptyWidth) + ']';
-
-    y = 10;
-    const barX = 1 + Math.floor((innerWidth - progressBar.length) / 2);
-    pushTextOps(all, barX, y, progressBar);
-    pushTextOps(all, barX + progressBar.length - 4, y - 1, progressLabel);
 
     // Continue button (centered, primary)
     const continueBtn = buildGenerateButtonLines('CONTINUE', '->');
@@ -126,22 +178,41 @@ export const DebriefView: React.FC<DebriefViewProps> = ({ onContinue, crtUiWarp2
       }
     }
 
-    // Article teaser + link (centered, secondary)
-    const teaserText = 'Feel that friction? So do agents.';
-    const teaserX = 1 + Math.max(0, Math.floor((innerWidth - teaserText.length) / 2));
-    pushTextOps(all, teaserX, boxHeight - 4, teaserText);
-
-    const articleLink = '[READ: WHAT IS AX?]';
-    const learnMoreX = 1 + Math.max(0, Math.floor((innerWidth - articleLink.length) / 2));
+    // Article teaser + link (centered, secondary) - only on phase 1
+    let teaserX = 0;
+    let teaserWidth = 0;
+    let learnMoreX = 0;
+    let learnMoreWidth = 0;
     const learnMoreY = boxHeight - 2;
-    pushTextOps(all, learnMoreX, learnMoreY, articleLink);
+
+    if (phase === 1) {
+      const teaserText = 'Feel that friction? So do agents.';
+      teaserX = 1 + Math.max(0, Math.floor((innerWidth - teaserText.length) / 2));
+      teaserWidth = teaserText.length;
+      pushTextOps(all, teaserX, boxHeight - 4, teaserText);
+
+      const articleLink = '[READ: WHAT IS AX?]';
+      learnMoreX = 1 + Math.max(0, Math.floor((innerWidth - articleLink.length) / 2));
+      learnMoreWidth = articleLink.length;
+      pushTextOps(all, learnMoreX, learnMoreY, articleLink);
+    } else {
+      const teaserText = 'Think you can beat these?';
+      teaserX = 1 + Math.max(0, Math.floor((innerWidth - teaserText.length) / 2));
+      teaserWidth = teaserText.length;
+      pushTextOps(all, teaserX, boxHeight - 4, teaserText);
+
+      const articleLink = '[PROVE IT]';
+      learnMoreX = 1 + Math.max(0, Math.floor((innerWidth - articleLink.length) / 2));
+      learnMoreWidth = articleLink.length;
+      pushTextOps(all, learnMoreX, learnMoreY, articleLink);
+    }
 
     return {
       ops: all,
       learnMoreX,
-      learnMoreWidth: articleLink.length,
+      learnMoreWidth,
       teaserX,
-      teaserWidth: teaserText.length,
+      teaserWidth,
       teaserY: boxHeight - 4,
       learnMoreY,
       continueBtnX,
@@ -149,7 +220,7 @@ export const DebriefView: React.FC<DebriefViewProps> = ({ onContinue, crtUiWarp2
       continueBtnY,
       btnHeight: continueBtn.height,
     };
-  }, [boxWidth, boxHeight]);
+  }, [boxWidth, boxHeight, phase]);
 
   // Phase 1: Animate ASCII art
   useEffect(() => {
@@ -160,7 +231,7 @@ export const DebriefView: React.FC<DebriefViewProps> = ({ onContinue, crtUiWarp2
       return;
     }
 
-    const char = PHASE2_ASCII[asciiVisibleChars];
+    const char = asciiArt[asciiVisibleChars];
     let delay = 4;
     if (char === ' ') delay = 1;
     else if (char === '\n') delay = 8;
@@ -218,7 +289,7 @@ export const DebriefView: React.FC<DebriefViewProps> = ({ onContinue, crtUiWarp2
   }, [boxDone, onContinue]);
 
   const filterId = 'crtWarp2d-debrief';
-  const visibleAscii = PHASE2_ASCII.slice(0, asciiVisibleChars);
+  const visibleAscii = asciiArt.slice(0, asciiVisibleChars);
   const canvasFontFamily =
     'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
 
@@ -251,14 +322,22 @@ export const DebriefView: React.FC<DebriefViewProps> = ({ onContinue, crtUiWarp2
     // Check if click is within teaser text bounds
     if (charY === plan.teaserY) {
       if (charX >= plan.teaserX && charX < plan.teaserX + plan.teaserWidth) {
-        handleOpenDebrief();
+        if (phase === 1) {
+          handleOpenDebrief();
+        } else {
+          onContinue(); // Phase 2: "PROVE IT" just continues
+        }
         return;
       }
     }
     // Check if click is within article link bounds
     if (charY === plan.learnMoreY) {
       if (charX >= plan.learnMoreX && charX < plan.learnMoreX + plan.learnMoreWidth) {
-        handleOpenDebrief();
+        if (phase === 1) {
+          handleOpenDebrief();
+        } else {
+          onContinue(); // Phase 2: "PROVE IT" just continues
+        }
         return;
       }
     }
