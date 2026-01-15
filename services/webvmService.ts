@@ -175,11 +175,45 @@ class WebVMService {
         throw lastError || new Error("WebVM request failed after retries");
     }
 
+    /**
+     * Clean up terminal output by removing:
+     * - ANSI escape codes
+     * - Trailing shell prompts (user@host:~$, [user@host ~]$, etc.)
+     * - The echoed command itself from the start
+     */
+    private cleanOutput(raw: string, cmd: string): string {
+        // Remove ANSI escape codes
+        let cleaned = raw.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
+
+        // Remove carriage returns
+        cleaned = cleaned.replace(/\r/g, '');
+
+        // Remove the echoed command from the start (command + newline)
+        const cmdLine = cmd.trim();
+        if (cleaned.startsWith(cmdLine)) {
+            cleaned = cleaned.slice(cmdLine.length);
+        }
+        // Also try with \n prefix in case there's leading whitespace
+        cleaned = cleaned.replace(new RegExp(`^\\s*${cmdLine.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\n?`), '');
+
+        // Remove trailing shell prompts (various formats)
+        // Matches: user@host:~$ , [user@host ~]$ , bash-5.1$ , etc.
+        cleaned = cleaned.replace(/\n?[\w-]*@[\w-]*:[~\/\w]*\$\s*$/g, '');
+        cleaned = cleaned.replace(/\n?\[[\w@\s~\/-]+\]\$\s*$/g, '');
+        cleaned = cleaned.replace(/\n?bash-[\d.]+\$\s*$/g, '');
+        cleaned = cleaned.replace(/\n?[a-z]+@[a-z]+:.*\$\s*$/gi, '');
+
+        // Trim whitespace
+        cleaned = cleaned.trim();
+
+        return cleaned;
+    }
+
     async executeShell(cmd: string): Promise<string> {
         await this.boot();
         const result = await this.requestWithRetry<WebVMExecResult>("webvm:exec", { cmd }, 60_000);
         if (!result.ok) throw new Error(result.output || "WebVM exec failed");
-        return result.output;
+        return this.cleanOutput(result.output, cmd);
     }
 
     async writeFile(path: string, content: string): Promise<void> {
