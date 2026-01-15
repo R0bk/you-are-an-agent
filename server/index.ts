@@ -9,6 +9,10 @@ app.use(express.json());
 // API key stays on server - never sent to client
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
+// Limits to prevent abuse
+const MAX_OUTPUT_TOKENS = 2000;
+const MAX_INPUT_LENGTH = 10000; // ~2500 tokens
+
 if (!GEMINI_API_KEY) {
   console.warn('Warning: GEMINI_API_KEY not set. Gemini calls will fail.');
 }
@@ -22,14 +26,23 @@ app.post('/api/gemini', async (req, res) => {
   try {
     const { model, contents } = req.body;
 
-    if (!model || !contents) {
-      return res.status(400).json({ error: 'Missing model or contents' });
+    if (!contents) {
+      return res.status(400).json({ error: 'Missing contents' });
+    }
+
+    // Check input length to prevent abuse
+    const inputStr = typeof contents === 'string' ? contents : JSON.stringify(contents);
+    if (inputStr.length > MAX_INPUT_LENGTH) {
+      return res.status(400).json({ error: 'Input too long' });
     }
 
     const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
     const response = await ai.models.generateContent({
-      model: model || 'gemini-2.0-flash-exp',
+      model: model || 'gemini-2.0-flash',
       contents,
+      config: {
+        maxOutputTokens: MAX_OUTPUT_TOKENS,
+      },
     });
 
     res.json({ text: response.text });
