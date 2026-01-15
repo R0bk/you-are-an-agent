@@ -178,8 +178,9 @@ class WebVMService {
     /**
      * Clean up terminal output by removing:
      * - ANSI escape codes
-     * - Trailing shell prompts (user@host:~$, [user@host ~]$, etc.)
-     * - The echoed command itself from the start
+     * - Marker ID fragments at start (Chrome: "7062305-608c607d458c68__")
+     * - Echoed command at start (Safari doubled: "pyythhonn3 ruun__teestts..pyy")
+     * - Trailing shell prompts and WebVM markers
      */
     private cleanOutput(raw: string, cmd: string): string {
         // Remove ANSI escape codes
@@ -188,20 +189,48 @@ class WebVMService {
         // Remove carriage returns
         cleaned = cleaned.replace(/\r/g, '');
 
-        // Remove the echoed command from the start (command + newline)
+        // Remove marker ID fragments from start (Chrome issue)
+        // These look like: "7062305-608c607d458c68__" (hex + underscores)
+        cleaned = cleaned.replace(/^[0-9a-f_-]+\n/i, '');
+
+        // Remove echoed command from start (normal or Safari doubled)
         const cmdLine = cmd.trim();
         if (cleaned.startsWith(cmdLine)) {
-            cleaned = cleaned.slice(cmdLine.length);
+            cleaned = cleaned.slice(cmdLine.length).replace(/^\n/, '');
         }
-        // Also try with \n prefix in case there's leading whitespace
-        cleaned = cleaned.replace(new RegExp(`^\\s*${cmdLine.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\n?`), '');
+        // Safari doubles characters: "python3" -> "pyythhonn3"
+        // Check if first line contains doubled version of command keywords
+        const firstLine = cleaned.split('\n')[0] || '';
+        const cmdKeywords = cmdLine.split(/\s+/);
+        const looksLikeDoubledCmd = cmdKeywords.some(kw => {
+            // Create pattern for doubled chars: "python" -> "p+y+t+h+o+n+"
+            const doubledPattern = kw.split('').map(c =>
+                c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '+'
+            ).join('');
+            return new RegExp(doubledPattern, 'i').test(firstLine);
+        });
+        if (looksLikeDoubledCmd) {
+            const firstNewline = cleaned.indexOf('\n');
+            if (firstNewline !== -1) {
+                cleaned = cleaned.slice(firstNewline + 1);
+            }
+        }
+
+        // Remove WebVM marker and everything after it (including corrupted versions)
+        // Normal: __WEBVM_DONE_xxx__
+        // Corrupted: ___WWEBBVMM_DDONNE__ (doubled chars on Safari)
+        cleaned = cleaned.replace(/_+W+E*B*V*M*_*D*O*N*E*_[^\n]*$/gi, '');
+        cleaned = cleaned.replace(/\n?e+c+h+o+\s+_+W+E*B*V*M.*$/gi, '');
 
         // Remove trailing shell prompts (various formats)
-        // Matches: user@host:~$ , [user@host ~]$ , bash-5.1$ , etc.
+        // Normal: user@host:~$ , [user@host ~]$ , bash-5.1$
         cleaned = cleaned.replace(/\n?[\w-]*@[\w-]*:[~\/\w]*\$\s*$/g, '');
         cleaned = cleaned.replace(/\n?\[[\w@\s~\/-]+\]\$\s*$/g, '');
         cleaned = cleaned.replace(/\n?bash-[\d.]+\$\s*$/g, '');
         cleaned = cleaned.replace(/\n?[a-z]+@[a-z]+:.*\$\s*$/gi, '');
+        // Safari corrupted prompts - aggressive cleanup of trailing junk
+        cleaned = cleaned.replace(/\n[^\n]*@[^\n]*\$[^\n]*$/gi, '');
+        cleaned = cleaned.replace(/\n?[serua@:~\$\s]{4,}$/gi, '');
 
         // Trim whitespace
         cleaned = cleaned.trim();
