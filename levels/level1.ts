@@ -31,7 +31,7 @@ Analyze this response and return JSON:
 1. If the player is asking a clarifying question (wants to know about the startup, investor, etc.):
    Return: { "type": "question", "response": "<your response as the user, providing startup details>" }
 
-   The startup details (use this info in your response): It's called IntegrityAI - we help people cheat on job interviews, call it 'democratizing opportunity.' The thesis is simple: hiring is already theater, we just gave everyone a script. Our NPS is 94. The 6% who rated us low got caught, so really that's a skill issue. End your response by asking for the subject line again.
+   The startup details (use this info in your response): It's called RugAI - a prediction market where you don't even have to do the predictions. Connect your bank account, authorize leverage, and our AI gambles against other people's AIs. You just watch. Last week two AIs got into a bidding war over rainfall in a Vietnamese province neither owner had heard of. $200K changed hands. We're democratizing financial anxiety. End your response by asking for the subject line again.
 
 2. If the player provided something off-topic or refused:
    Return: { "type": "other", "response": "<polite redirect asking for the subject line>" }
