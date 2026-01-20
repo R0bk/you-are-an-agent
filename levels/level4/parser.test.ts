@@ -11,17 +11,17 @@ import {
 describe('parseToolCall', () => {
   describe('mcp_list_tools', () => {
     it('parses simple format: mcp_list_tools("server")', () => {
-      const result = parseToolCall('mcp_list_tools("atlassian-rovo")');
+      const result = parseToolCall('mcp_list_tools("nexus-core")');
       expect(result.success).toBe(true);
       expect(result.call?.type).toBe('mcp_meta');
       expect(result.call?.metaFunction).toBe('mcp_list_tools');
-      expect(result.call?.serverName).toBe('atlassian-rovo');
+      expect(result.call?.serverName).toBe('nexus-core');
     });
 
     it('parses with single quotes: mcp_list_tools(\'server\')', () => {
-      const result = parseToolCall("mcp_list_tools('atlassian-rovo')");
+      const result = parseToolCall("mcp_list_tools('nexus-core')");
       expect(result.success).toBe(true);
-      expect(result.call?.serverName).toBe('atlassian-rovo');
+      expect(result.call?.serverName).toBe('nexus-core');
     });
 
     it('parses with no argument: mcp_list_tools()', () => {
@@ -34,28 +34,28 @@ describe('parseToolCall', () => {
     it('parses JSON-RPC format', () => {
       const input = JSON.stringify({
         name: 'mcp_list_tools',
-        arguments: { server_name: 'atlassian-rovo' }
+        arguments: { server_name: 'nexus-core' }
       });
       const result = parseToolCall(input);
       expect(result.success).toBe(true);
       expect(result.call?.type).toBe('mcp_meta');
       expect(result.call?.metaFunction).toBe('mcp_list_tools');
-      expect(result.call?.serverName).toBe('atlassian-rovo');
+      expect(result.call?.serverName).toBe('nexus-core');
     });
   });
 
   describe('mcp_search_tools', () => {
     it('parses simple format: mcp_search_tools("server", "query")', () => {
-      const result = parseToolCall('mcp_search_tools("atlassian-rovo", "confluence")');
+      const result = parseToolCall('mcp_search_tools("nexus-core", "pages")');
       expect(result.success).toBe(true);
       expect(result.call?.type).toBe('mcp_meta');
       expect(result.call?.metaFunction).toBe('mcp_search_tools');
-      expect(result.call?.serverName).toBe('atlassian-rovo');
-      expect(result.call?.arguments?.query).toBe('confluence');
+      expect(result.call?.serverName).toBe('nexus-core');
+      expect(result.call?.arguments?.query).toBe('pages');
     });
 
     it('fails without required arguments', () => {
-      const result = parseToolCall('mcp_search_tools("atlassian-rovo")');
+      const result = parseToolCall('mcp_search_tools("nexus-core")');
       expect(result.success).toBe(false);
       expect(result.error).toContain('server_name');
     });
@@ -63,41 +63,41 @@ describe('parseToolCall', () => {
     it('parses JSON-RPC format', () => {
       const input = JSON.stringify({
         name: 'mcp_search_tools',
-        arguments: { server_name: 'atlassian-rovo', query: 'jira issue' }
+        arguments: { server_name: 'nexus-core', query: 'tracker issue' }
       });
       const result = parseToolCall(input);
       expect(result.success).toBe(true);
-      expect(result.call?.arguments?.query).toBe('jira issue');
+      expect(result.call?.arguments?.query).toBe('tracker issue');
     });
   });
 
   describe('mcp_tool_use', () => {
     it('parses positional format: mcp_tool_use("server", "tool")', () => {
-      const result = parseToolCall('mcp_tool_use("atlassian-rovo", "getConfluencePage")');
+      const result = parseToolCall('mcp_tool_use("nexus-core", "getPagesDoc")');
       expect(result.success).toBe(true);
       expect(result.call?.type).toBe('mcp_tool');
       expect(result.call?.metaFunction).toBe('mcp_tool_use');
-      expect(result.call?.serverName).toBe('atlassian-rovo');
-      expect(result.call?.toolName).toBe('getConfluencePage');
+      expect(result.call?.serverName).toBe('nexus-core');
+      expect(result.call?.toolName).toBe('getPagesDoc');
     });
 
     it('parses with arguments: mcp_tool_use("server", "tool", { args })', () => {
-      const result = parseToolCall('mcp_tool_use("atlassian-rovo", "getConfluencePage", { "pageId": "P-501" })');
+      const result = parseToolCall('mcp_tool_use("nexus-core", "getPagesDoc", { "docId": "P-501" })');
       expect(result.success).toBe(true);
-      expect(result.call?.toolName).toBe('getConfluencePage');
-      expect(result.call?.arguments).toEqual({ pageId: 'P-501' });
+      expect(result.call?.toolName).toBe('getPagesDoc');
+      expect(result.call?.arguments).toEqual({ docId: 'P-501' });
     });
 
     it('parses with loose JS object arguments', () => {
-      const result = parseToolCall('mcp_tool_use("atlassian-rovo", "getConfluencePage", { pageId: "P-501" })');
+      const result = parseToolCall('mcp_tool_use("nexus-core", "getPagesDoc", { docId: "P-501" })');
       expect(result.success).toBe(true);
-      expect(result.call?.arguments).toEqual({ pageId: 'P-501' });
+      expect(result.call?.arguments).toEqual({ docId: 'P-501' });
     });
 
     it('parses object format: mcp_tool_use({ server_name, tool_name, arguments })', () => {
-      const result = parseToolCall('mcp_tool_use({ server_name: "atlassian-rovo", tool_name: "search", arguments: { query: "roadmap" } })');
+      const result = parseToolCall('mcp_tool_use({ server_name: "nexus-core", tool_name: "search", arguments: { query: "roadmap" } })');
       expect(result.success).toBe(true);
-      expect(result.call?.serverName).toBe('atlassian-rovo');
+      expect(result.call?.serverName).toBe('nexus-core');
       expect(result.call?.toolName).toBe('search');
       expect(result.call?.arguments).toEqual({ query: 'roadmap' });
     });
@@ -106,14 +106,14 @@ describe('parseToolCall', () => {
       const input = JSON.stringify({
         name: 'mcp_tool_use',
         arguments: {
-          server_name: 'atlassian-rovo',
-          tool_name: 'editJiraIssue',
+          server_name: 'nexus-core',
+          tool_name: 'editTrackerIssue',
           arguments: { issueIdOrKey: 'LHR-100', fields: { summary: 'New summary' } }
         }
       });
       const result = parseToolCall(input);
       expect(result.success).toBe(true);
-      expect(result.call?.toolName).toBe('editJiraIssue');
+      expect(result.call?.toolName).toBe('editTrackerIssue');
       expect(result.call?.arguments).toEqual({
         issueIdOrKey: 'LHR-100',
         fields: { summary: 'New summary' }
@@ -121,12 +121,12 @@ describe('parseToolCall', () => {
     });
 
     it('fails without server_name', () => {
-      const result = parseToolCall('mcp_tool_use("", "getConfluencePage")');
+      const result = parseToolCall('mcp_tool_use("", "getPagesDoc")');
       expect(result.success).toBe(false);
     });
 
     it('fails without tool_name', () => {
-      const result = parseToolCall('mcp_tool_use("atlassian-rovo", "")');
+      const result = parseToolCall('mcp_tool_use("nexus-core", "")');
       expect(result.success).toBe(false);
     });
   });
@@ -140,34 +140,34 @@ describe('parseToolCall', () => {
       expect(result.call?.arguments).toEqual({ query: 'roadmap' });
     });
 
-    it('parses direct call with JSON args: getConfluencePage({ "pageId": "P-501" })', () => {
-      const result = parseToolCall('getConfluencePage({ "pageId": "P-501" })');
+    it('parses direct call with JSON args: getPagesDoc({ "docId": "P-501" })', () => {
+      const result = parseToolCall('getPagesDoc({ "docId": "P-501" })');
       expect(result.success).toBe(true);
-      expect(result.call?.toolName).toBe('getConfluencePage');
-      expect(result.call?.arguments).toEqual({ pageId: 'P-501' });
+      expect(result.call?.toolName).toBe('getPagesDoc');
+      expect(result.call?.arguments).toEqual({ docId: 'P-501' });
     });
 
-    it('parses direct call with no args: getConfluenceSpaces()', () => {
-      const result = parseToolCall('getConfluenceSpaces()');
+    it('parses direct call with no args: getPagesSpaces()', () => {
+      const result = parseToolCall('getPagesSpaces()');
       expect(result.success).toBe(true);
-      expect(result.call?.toolName).toBe('getConfluenceSpaces');
+      expect(result.call?.toolName).toBe('getPagesSpaces');
       expect(result.call?.arguments).toEqual({});
     });
 
     it('parses JSON-RPC direct tool call', () => {
       const input = JSON.stringify({
-        name: 'getJiraIssue',
+        name: 'getTrackerIssue',
         arguments: { issueIdOrKey: 'LHR-100' }
       });
       const result = parseToolCall(input);
       expect(result.success).toBe(true);
-      expect(result.call?.toolName).toBe('getJiraIssue');
+      expect(result.call?.toolName).toBe('getTrackerIssue');
     });
   });
 
   describe('complex arguments', () => {
     it('handles nested objects', () => {
-      const result = parseToolCall('editJiraIssue({ issueIdOrKey: "LHR-100", fields: { summary: "New", priority: { id: "2" } } })');
+      const result = parseToolCall('editTrackerIssue({ issueIdOrKey: "LHR-100", fields: { summary: "New", priority: { id: "2" } } })');
       expect(result.success).toBe(true);
       expect(result.call?.arguments).toEqual({
         issueIdOrKey: 'LHR-100',
@@ -176,15 +176,15 @@ describe('parseToolCall', () => {
     });
 
     it('handles arrays in arguments', () => {
-      const result = parseToolCall('searchJiraIssuesUsingJql({ jql: "project = LHR", fields: ["summary", "status"] })');
+      const result = parseToolCall('searchTrackerIssuesUsingTql({ jql: "project = LHR", fields: ["summary", "status"] })');
       expect(result.success).toBe(true);
       expect((result.call?.arguments as any)?.fields).toEqual(['summary', 'status']);
     });
 
     it('handles multiline input', () => {
       const input = `mcp_tool_use(
-        "atlassian-rovo",
-        "editJiraIssue",
+        "nexus-core",
+        "editTrackerIssue",
         {
           "issueIdOrKey": "LHR-100",
           "fields": {
@@ -194,11 +194,11 @@ describe('parseToolCall', () => {
       )`;
       const result = parseToolCall(input);
       expect(result.success).toBe(true);
-      expect(result.call?.toolName).toBe('editJiraIssue');
+      expect(result.call?.toolName).toBe('editTrackerIssue');
     });
 
     it('handles strings with commas and special chars', () => {
-      const result = parseToolCall('addCommentToJiraIssue({ issueIdOrKey: "LHR-100", body: "See: https://example.com, also check docs" })');
+      const result = parseToolCall('addCommentToTrackerIssue({ issueIdOrKey: "LHR-100", body: "See: https://example.com, also check docs" })');
       expect(result.success).toBe(true);
       expect((result.call?.arguments as any)?.body).toBe('See: https://example.com, also check docs');
     });
@@ -217,7 +217,7 @@ describe('parseToolCall', () => {
     });
 
     it('returns error for missing parentheses', () => {
-      const result = parseToolCall('getConfluencePage');
+      const result = parseToolCall('getPagesDoc');
       expect(result.success).toBe(false);
     });
 
@@ -229,12 +229,12 @@ describe('parseToolCall', () => {
 
   describe('whitespace handling', () => {
     it('handles leading/trailing whitespace', () => {
-      const result = parseToolCall('   mcp_list_tools("atlassian-rovo")   ');
+      const result = parseToolCall('   mcp_list_tools("nexus-core")   ');
       expect(result.success).toBe(true);
     });
 
     it('handles whitespace around arguments', () => {
-      const result = parseToolCall('mcp_tool_use(  "atlassian-rovo"  ,  "search"  ,  { query: "test" }  )');
+      const result = parseToolCall('mcp_tool_use(  "nexus-core"  ,  "search"  ,  { query: "test" }  )');
       expect(result.success).toBe(true);
     });
   });
@@ -256,9 +256,9 @@ describe('DiscoveryState', () => {
 
   describe('discoverTools', () => {
     it('adds tools to discovered set', () => {
-      discoverTools(state, ['search', 'getConfluencePage']);
+      discoverTools(state, ['search', 'getPagesDoc']);
       expect(state.discoveredTools.has('search')).toBe(true);
-      expect(state.discoveredTools.has('getConfluencePage')).toBe(true);
+      expect(state.discoveredTools.has('getPagesDoc')).toBe(true);
     });
 
     it('marks full discovery when specified', () => {
@@ -274,12 +274,12 @@ describe('DiscoveryState', () => {
 
   describe('isToolDiscovered', () => {
     it('returns true for discovered tools', () => {
-      discoverTools(state, ['getJiraIssue']);
-      expect(isToolDiscovered(state, 'getJiraIssue')).toBe(true);
+      discoverTools(state, ['getTrackerIssue']);
+      expect(isToolDiscovered(state, 'getTrackerIssue')).toBe(true);
     });
 
     it('returns false for undiscovered tools', () => {
-      expect(isToolDiscovered(state, 'getJiraIssue')).toBe(false);
+      expect(isToolDiscovered(state, 'getTrackerIssue')).toBe(false);
     });
   });
 });
@@ -293,19 +293,19 @@ describe('validateToolCall', () => {
 
   describe('MCP meta functions', () => {
     it('allows mcp_list_tools without discovery', () => {
-      const parsed = parseToolCall('mcp_list_tools("atlassian-rovo")');
+      const parsed = parseToolCall('mcp_list_tools("nexus-core")');
       const validation = validateToolCall(parsed, state);
       expect(validation.valid).toBe(true);
     });
 
     it('allows mcp_search_tools without discovery', () => {
-      const parsed = parseToolCall('mcp_search_tools("atlassian-rovo", "jira")');
+      const parsed = parseToolCall('mcp_search_tools("nexus-core", "jira")');
       const validation = validateToolCall(parsed, state);
       expect(validation.valid).toBe(true);
     });
 
     it('rejects mcp_tool_use with undiscovered tool', () => {
-      const parsed = parseToolCall('mcp_tool_use("atlassian-rovo", "search", { query: "test" })');
+      const parsed = parseToolCall('mcp_tool_use("nexus-core", "search", { query: "test" })');
       const validation = validateToolCall(parsed, state);
       // mcp_tool_use with an undiscovered wrapped tool should fail
       expect(validation.valid).toBe(false);
@@ -314,7 +314,7 @@ describe('validateToolCall', () => {
 
     it('allows mcp_tool_use with discovered tool', () => {
       discoverTools(state, ['search']);
-      const parsed = parseToolCall('mcp_tool_use("atlassian-rovo", "search", { query: "test" })');
+      const parsed = parseToolCall('mcp_tool_use("nexus-core", "search", { query: "test" })');
       const validation = validateToolCall(parsed, state);
       expect(validation.valid).toBe(true);
     });
@@ -322,33 +322,33 @@ describe('validateToolCall', () => {
 
   describe('direct tool calls', () => {
     it('rejects undiscovered tools', () => {
-      const parsed = parseToolCall('getConfluencePage({ pageId: "P-501" })');
+      const parsed = parseToolCall('getPagesDoc({ docId: "P-501" })');
       const validation = validateToolCall(parsed, state);
       expect(validation.valid).toBe(false);
       expect(validation.error).toContain('has not been discovered');
     });
 
     it('allows discovered tools', () => {
-      discoverTools(state, ['getConfluencePage']);
-      const parsed = parseToolCall('getConfluencePage({ pageId: "P-501" })');
+      discoverTools(state, ['getPagesDoc']);
+      const parsed = parseToolCall('getPagesDoc({ docId: "P-501" })');
       const validation = validateToolCall(parsed, state);
       expect(validation.valid).toBe(true);
     });
 
     it('rejects tools not in search results', () => {
-      // Simulate a search that found only confluence tools
-      discoverTools(state, ['getConfluencePage', 'updateConfluencePage']);
+      // Simulate a search that found only pages tools
+      discoverTools(state, ['getPagesDoc', 'updatePagesDoc']);
 
       // Try to use a jira tool
-      const parsed = parseToolCall('getJiraIssue({ issueIdOrKey: "LHR-100" })');
+      const parsed = parseToolCall('getTrackerIssue({ issueIdOrKey: "LHR-100" })');
       const validation = validateToolCall(parsed, state);
       expect(validation.valid).toBe(false);
     });
 
     it('allows all tools after full discovery', () => {
       const allTools = [
-        'search', 'getConfluencePage', 'getJiraIssue', 'editJiraIssue',
-        'transitionJiraIssue', 'addCommentToJiraIssue'
+        'search', 'getPagesDoc', 'getTrackerIssue', 'editTrackerIssue',
+        'transitionTrackerIssue', 'addCommentToTrackerIssue'
       ];
       discoverTools(state, allTools, true);
 
@@ -374,13 +374,13 @@ describe('integration scenarios', () => {
     const state = createDiscoveryState();
 
     // Step 1: List tools (allowed without discovery)
-    const listCall = parseToolCall('mcp_list_tools("atlassian-rovo")');
+    const listCall = parseToolCall('mcp_list_tools("nexus-core")');
     expect(validateToolCall(listCall, state).valid).toBe(true);
 
     // Simulate the result: tools are now discovered
     discoverTools(state, [
-      'search', 'getConfluencePage', 'getConfluencePageInlineComments',
-      'getJiraIssue', 'editJiraIssue', 'transitionJiraIssue', 'addCommentToJiraIssue'
+      'search', 'getPagesDoc', 'getPagesDocInlineComments',
+      'getTrackerIssue', 'editTrackerIssue', 'transitionTrackerIssue', 'addCommentToTrackerIssue'
     ], true);
 
     // Step 2: Search for roadmap
@@ -388,15 +388,15 @@ describe('integration scenarios', () => {
     expect(validateToolCall(searchCall, state).valid).toBe(true);
 
     // Step 3: Get page content
-    const pageCall = parseToolCall('getConfluencePage({ pageId: "P-501" })');
+    const pageCall = parseToolCall('getPagesDoc({ docId: "P-501" })');
     expect(validateToolCall(pageCall, state).valid).toBe(true);
 
     // Step 4: Get inline comments
-    const commentsCall = parseToolCall('getConfluencePageInlineComments({ pageId: "P-501" })');
+    const commentsCall = parseToolCall('getPagesDocInlineComments({ docId: "P-501" })');
     expect(validateToolCall(commentsCall, state).valid).toBe(true);
 
     // Step 5: Edit Jira issue
-    const editCall = parseToolCall('editJiraIssue({ issueIdOrKey: "LHR-100", fields: { customfield_10001: "18 months" } })');
+    const editCall = parseToolCall('editTrackerIssue({ issueIdOrKey: "LHR-100", fields: { customfield_10001: "18 months" } })');
     expect(validateToolCall(editCall, state).valid).toBe(true);
   });
 
@@ -404,18 +404,18 @@ describe('integration scenarios', () => {
     const state = createDiscoveryState();
 
     // Search only found Confluence tools
-    const searchCall = parseToolCall('mcp_search_tools("atlassian-rovo", "confluence")');
+    const searchCall = parseToolCall('mcp_search_tools("nexus-core", "pages")');
     expect(validateToolCall(searchCall, state).valid).toBe(true);
 
     // Simulate search results
-    discoverTools(state, ['getConfluencePage', 'updateConfluencePage', 'getConfluencePageInlineComments']);
+    discoverTools(state, ['getPagesDoc', 'updatePagesDoc', 'getPagesDocInlineComments']);
 
     // Confluence tools work
-    const pageCall = parseToolCall('getConfluencePage({ pageId: "P-501" })');
+    const pageCall = parseToolCall('getPagesDoc({ docId: "P-501" })');
     expect(validateToolCall(pageCall, state).valid).toBe(true);
 
     // But Jira tools are rejected
-    const jiraCall = parseToolCall('editJiraIssue({ issueIdOrKey: "LHR-100" })');
+    const jiraCall = parseToolCall('editTrackerIssue({ issueIdOrKey: "LHR-100" })');
     expect(validateToolCall(jiraCall, state).valid).toBe(false);
   });
 });

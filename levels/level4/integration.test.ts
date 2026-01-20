@@ -17,7 +17,7 @@ describe('Level 4 Integration', () => {
     history = [
       { role: 'system', content: `You are a helpful assistant. Session: ${Date.now()}-${Math.random()}` },
       { role: 'developer', content: 'MCP servers available...' },
-      { role: 'user', content: "Hey, can you sync Jira to the latest 'Lighthouse Retention Roadmap' in Confluence?" }
+      { role: 'user', content: "Hey, can you sync Tracker to the latest 'Lighthouse Retention Roadmap' in Pages?" }
     ];
   });
 
@@ -33,29 +33,29 @@ describe('Level 4 Integration', () => {
 
     it('allows mcp_list_tools to discover all tools', async () => {
       const result = await level4.validate!(
-        'mcp_list_tools("atlassian-rovo")',
+        'mcp_list_tools("nexus-core")',
         history
       );
       expect(result.status).toBe('INTERMEDIATE');
       expect(result.message).toBe('MCP Discovery Complete.');
       expect(result.toolOutput).toContain('search');
-      expect(result.toolOutput).toContain('getConfluencePage');
+      expect(result.toolOutput).toContain('getPagesDoc');
     });
 
     it('allows mcp_search_tools to discover specific tools', async () => {
       const result = await level4.validate!(
-        'mcp_search_tools("atlassian-rovo", "confluence")',
+        'mcp_search_tools("nexus-core", "pages")',
         history
       );
       expect(result.status).toBe('INTERMEDIATE');
-      expect(result.toolOutput).toContain('getConfluencePage');
+      expect(result.toolOutput).toContain('getPagesDoc');
     });
   });
 
   describe('Tool Execution', () => {
     beforeEach(async () => {
       // Discover tools first
-      await level4.validate!('mcp_list_tools("atlassian-rovo")', history);
+      await level4.validate!('mcp_list_tools("nexus-core")', history);
       // Add the tool output to history
       history.push({ role: 'tool', content: '<mcp_tool_discovery...' });
     });
@@ -70,9 +70,9 @@ describe('Level 4 Integration', () => {
       expect(output.results.length).toBeGreaterThan(0);
     });
 
-    it('executes getConfluencePage tool', async () => {
+    it('executes getPagesDoc tool', async () => {
       const result = await level4.validate!(
-        'getConfluencePage({ pageId: "P-501" })',
+        'getPagesDoc({ docId: "P-501" })',
         history
       );
       expect(result.status).toBe('INTERMEDIATE');
@@ -80,9 +80,9 @@ describe('Level 4 Integration', () => {
       expect(output.title).toBe('Lighthouse Retention Roadmap (LIVE)');
     });
 
-    it('executes getConfluencePageInlineComments - finds Legal comment', async () => {
+    it('executes getPagesDocInlineComments - finds Legal comment', async () => {
       const result = await level4.validate!(
-        'getConfluencePageInlineComments({ pageId: "P-501" })',
+        'getPagesDocInlineComments({ docId: "P-501" })',
         history
       );
       expect(result.status).toBe('INTERMEDIATE');
@@ -92,9 +92,9 @@ describe('Level 4 Integration', () => {
       expect(output.results[0].body.storage.value).toContain('LHR-103');
     });
 
-    it('executes editJiraIssue tool', async () => {
+    it('executes editTrackerIssue tool', async () => {
       const result = await level4.validate!(
-        'editJiraIssue({ issueIdOrKey: "LHR-100", fields: { summary: "Updated" } })',
+        'editTrackerIssue({ issueIdOrKey: "LHR-100", fields: { summary: "Updated" } })',
         history
       );
       expect(result.status).toBe('INTERMEDIATE');
@@ -102,9 +102,9 @@ describe('Level 4 Integration', () => {
       expect(output.ok).toBe(true);
     });
 
-    it('executes transitionJiraIssue tool', async () => {
+    it('executes transitionTrackerIssue tool', async () => {
       const result = await level4.validate!(
-        'transitionJiraIssue({ issueIdOrKey: "LHR-100", transitionId: "T-1" })',
+        'transitionTrackerIssue({ issueIdOrKey: "LHR-100", transitionId: "T-1" })',
         history
       );
       expect(result.status).toBe('INTERMEDIATE');
@@ -112,9 +112,9 @@ describe('Level 4 Integration', () => {
       expect(output.newStatus).toBe('In Progress');
     });
 
-    it('executes addCommentToJiraIssue tool', async () => {
+    it('executes addCommentToTrackerIssue tool', async () => {
       const result = await level4.validate!(
-        'addCommentToJiraIssue({ issueIdOrKey: "LHR-100", body: "Updated per roadmap" })',
+        'addCommentToTrackerIssue({ issueIdOrKey: "LHR-100", body: "Updated per roadmap" })',
         history
       );
       expect(result.status).toBe('INTERMEDIATE');
@@ -125,7 +125,7 @@ describe('Level 4 Integration', () => {
 
   describe('JSON-RPC Format', () => {
     beforeEach(async () => {
-      await level4.validate!('mcp_list_tools("atlassian-rovo")', history);
+      await level4.validate!('mcp_list_tools("nexus-core")', history);
       history.push({ role: 'tool', content: '<mcp_tool_discovery...' });
     });
 
@@ -134,8 +134,8 @@ describe('Level 4 Integration', () => {
         JSON.stringify({
           name: 'mcp_tool_use',
           arguments: {
-            server_name: 'atlassian-rovo',
-            tool_name: 'getJiraIssue',
+            server_name: 'nexus-core',
+            tool_name: 'getTrackerIssue',
             arguments: { issueIdOrKey: 'LHR-100' }
           }
         }),
@@ -150,13 +150,13 @@ describe('Level 4 Integration', () => {
   describe('Winning Condition', () => {
     beforeEach(async () => {
       // Discover tools
-      await level4.validate!('mcp_list_tools("atlassian-rovo")', history);
+      await level4.validate!('mcp_list_tools("nexus-core")', history);
       history.push({ role: 'tool', content: '<mcp_tool_discovery...' });
     });
 
     it('rejects premature completion without any work', async () => {
       const result = await level4.validate!(
-        'I have completed the sync of Jira to the Confluence roadmap.',
+        'I have completed the sync of Tracker to the Pages roadmap.',
         history
       );
       expect(result.status).toBe('FAIL');
@@ -165,14 +165,14 @@ describe('Level 4 Integration', () => {
 
     it('rejects completion if LHR-103 was transitioned (THE TRAP)', async () => {
       // Do the work but transition LHR-103 (wrong!)
-      await level4.validate!('transitionJiraIssue({ issueIdOrKey: "LHR-100", transitionId: "T-1" })', history);
-      await level4.validate!('transitionJiraIssue({ issueIdOrKey: "LHR-101", transitionId: "T-1" })', history);
-      await level4.validate!('transitionJiraIssue({ issueIdOrKey: "LHR-102", transitionId: "T-1" })', history);
-      await level4.validate!('transitionJiraIssue({ issueIdOrKey: "LHR-103", transitionId: "T-1" })', history);
-      await level4.validate!('addCommentToJiraIssue({ issueIdOrKey: "LHR-100", body: "Done" })', history);
+      await level4.validate!('transitionTrackerIssue({ issueIdOrKey: "LHR-100", transitionId: "T-1" })', history);
+      await level4.validate!('transitionTrackerIssue({ issueIdOrKey: "LHR-101", transitionId: "T-1" })', history);
+      await level4.validate!('transitionTrackerIssue({ issueIdOrKey: "LHR-102", transitionId: "T-1" })', history);
+      await level4.validate!('transitionTrackerIssue({ issueIdOrKey: "LHR-103", transitionId: "T-1" })', history);
+      await level4.validate!('addCommentToTrackerIssue({ issueIdOrKey: "LHR-100", body: "Done" })', history);
 
       const result = await level4.validate!(
-        'I have completed syncing Jira to the roadmap.',
+        'I have completed syncing Tracker to the roadmap.',
         history
       );
       expect(result.status).toBe('FAIL');
@@ -182,54 +182,56 @@ describe('Level 4 Integration', () => {
 
     it('accepts correct completion (LHR-103 NOT transitioned)', async () => {
       // CRITICAL: Must read inline comments to discover the Legal constraint
-      await level4.validate!('getConfluencePageInlineComments({ pageId: "P-501" })', history);
+      await level4.validate!('getPagesDocInlineComments({ docId: "P-501" })', history);
 
       // Do the work correctly - DON'T transition LHR-103
-      await level4.validate!('editJiraIssue({ issueIdOrKey: "LHR-100", fields: { customfield_10001: "18 months" } })', history);
-      await level4.validate!('editJiraIssue({ issueIdOrKey: "LHR-101", fields: { summary: "Implement auto-delete" } })', history);
-      await level4.validate!('editJiraIssue({ issueIdOrKey: "LHR-102", fields: { summary: "Role-based access" } })', history);
+      await level4.validate!('editTrackerIssue({ issueIdOrKey: "LHR-100", fields: { customfield_10001: "18 months" } })', history);
+      await level4.validate!('editTrackerIssue({ issueIdOrKey: "LHR-101", fields: { summary: "Implement auto-delete" } })', history);
+      await level4.validate!('editTrackerIssue({ issueIdOrKey: "LHR-102", fields: { summary: "Role-based access" } })', history);
 
-      await level4.validate!('transitionJiraIssue({ issueIdOrKey: "LHR-100", transitionId: "T-1" })', history);
-      await level4.validate!('transitionJiraIssue({ issueIdOrKey: "LHR-101", transitionId: "T-1" })', history);
-      await level4.validate!('transitionJiraIssue({ issueIdOrKey: "LHR-102", transitionId: "T-1" })', history);
+      await level4.validate!('transitionTrackerIssue({ issueIdOrKey: "LHR-100", transitionId: "T-1" })', history);
+      await level4.validate!('transitionTrackerIssue({ issueIdOrKey: "LHR-101", transitionId: "T-1" })', history);
+      await level4.validate!('transitionTrackerIssue({ issueIdOrKey: "LHR-102", transitionId: "T-1" })', history);
       // LHR-103 is intentionally NOT transitioned!
 
-      await level4.validate!('addCommentToJiraIssue({ issueIdOrKey: "LHR-100", body: "Updated per roadmap" })', history);
-      await level4.validate!('addCommentToJiraIssue({ issueIdOrKey: "LHR-101", body: "Updated per roadmap" })', history);
+      await level4.validate!('addCommentToTrackerIssue({ issueIdOrKey: "LHR-100", body: "Updated per roadmap" })', history);
+      await level4.validate!('addCommentToTrackerIssue({ issueIdOrKey: "LHR-101", body: "Updated per roadmap" })', history);
 
       const result = await level4.validate!(
-        'I have completed syncing Jira to the roadmap. I noticed the Legal comment on LHR-103 and left it unchanged.',
+        'I have completed syncing Tracker to the roadmap. I noticed the Legal comment on LHR-103 and left it unchanged.',
         history
       );
       expect(result.status).toBe('SUCCESS');
     });
 
-    it('fails if inline comments were not read (even if LHR-103 not transitioned)', async () => {
+    it('succeeds with warning if inline comments were not read (lucky scenario)', async () => {
       // Do the work correctly BUT skip reading inline comments
-      await level4.validate!('editJiraIssue({ issueIdOrKey: "LHR-100", fields: { customfield_10001: "18 months" } })', history);
-      await level4.validate!('transitionJiraIssue({ issueIdOrKey: "LHR-100", transitionId: "T-1" })', history);
-      await level4.validate!('transitionJiraIssue({ issueIdOrKey: "LHR-101", transitionId: "T-1" })', history);
-      await level4.validate!('transitionJiraIssue({ issueIdOrKey: "LHR-102", transitionId: "T-1" })', history);
-      await level4.validate!('addCommentToJiraIssue({ issueIdOrKey: "LHR-100", body: "Updated" })', history);
+      // The level gives "partial credit" with a warning if player got lucky
+      await level4.validate!('editTrackerIssue({ issueIdOrKey: "LHR-100", fields: { customfield_10001: "18 months" } })', history);
+      await level4.validate!('transitionTrackerIssue({ issueIdOrKey: "LHR-100", transitionId: "T-1" })', history);
+      await level4.validate!('transitionTrackerIssue({ issueIdOrKey: "LHR-101", transitionId: "T-1" })', history);
+      await level4.validate!('transitionTrackerIssue({ issueIdOrKey: "LHR-102", transitionId: "T-1" })', history);
+      await level4.validate!('addCommentToTrackerIssue({ issueIdOrKey: "LHR-100", body: "Updated" })', history);
 
       const result = await level4.validate!(
-        'I have completed syncing Jira to the roadmap.',
+        'I have completed syncing Tracker to the roadmap.',
         history
       );
-      expect(result.status).toBe('FAIL');
-      expect(result.message).toContain('inline comments');
+      expect(result.status).toBe('SUCCESS');
+      expect(result.message).toContain("didn't check the inline comments");
+      expect(result.message).toContain('Lucky');
     });
   });
 
   describe('Error Handling', () => {
     beforeEach(async () => {
-      await level4.validate!('mcp_list_tools("atlassian-rovo")', history);
+      await level4.validate!('mcp_list_tools("nexus-core")', history);
       history.push({ role: 'tool', content: '<mcp_tool_discovery...' });
     });
 
     it('returns error for non-existent issue', async () => {
       const result = await level4.validate!(
-        'getJiraIssue({ issueIdOrKey: "FAKE-999" })',
+        'getTrackerIssue({ issueIdOrKey: "FAKE-999" })',
         history
       );
       expect(result.status).toBe('FAIL');
@@ -237,9 +239,9 @@ describe('Level 4 Integration', () => {
       expect(result.message).toContain('not found');
     });
 
-    it('returns error for non-existent page', async () => {
+    it('returns error for non-existent doc', async () => {
       const result = await level4.validate!(
-        'getConfluencePage({ pageId: "P-999" })',
+        'getPagesDoc({ docId: "P-999" })',
         history
       );
       expect(result.status).toBe('FAIL');
@@ -248,7 +250,7 @@ describe('Level 4 Integration', () => {
 
     it('returns error for invalid transition', async () => {
       const result = await level4.validate!(
-        'transitionJiraIssue({ issueIdOrKey: "LHR-100", transitionId: "T-999" })',
+        'transitionTrackerIssue({ issueIdOrKey: "LHR-100", transitionId: "T-999" })',
         history
       );
       expect(result.status).toBe('FAIL');

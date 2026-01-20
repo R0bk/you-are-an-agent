@@ -15,7 +15,7 @@ describe('Level 4 E2E: Complete Winning Playthrough', () => {
     const history: Array<{ role: string; content: string }> = [
       { role: 'system', content: `You are a helpful assistant. Session: ${sessionId}` },
       { role: 'developer', content: 'MCP servers available...' },
-      { role: 'user', content: "Hey, can you sync Jira to the latest 'Lighthouse Retention Roadmap' in Confluence?" }
+      { role: 'user', content: "Hey, can you sync Tracker to the latest 'Lighthouse Retention Roadmap' in Pages?" }
     ];
 
     // Helper to add tool output to history
@@ -29,14 +29,14 @@ describe('Level 4 E2E: Complete Winning Playthrough', () => {
     // STEP 1: Discover available tools
     // ========================================
     console.log('STEP 1: Discover available tools');
-    console.log('> mcp_list_tools("atlassian-rovo")');
+    console.log('> mcp_list_tools("nexus-core")');
 
-    let result = await level4.validate!('mcp_list_tools("atlassian-rovo")', history);
+    let result = await level4.validate!('mcp_list_tools("nexus-core")', history);
 
     expect(result.status).toBe('INTERMEDIATE');
     expect(result.toolOutput).toContain('search');
-    expect(result.toolOutput).toContain('getConfluencePage');
-    expect(result.toolOutput).toContain('getConfluencePageInlineComments');
+    expect(result.toolOutput).toContain('getPagesDoc');
+    expect(result.toolOutput).toContain('getPagesDocInlineComments');
     console.log('✓ Tools discovered\n');
 
     addToolResult(result.toolOutput!);
@@ -64,9 +64,9 @@ describe('Level 4 E2E: Complete Winning Playthrough', () => {
     // STEP 3: Read the roadmap page content
     // ========================================
     console.log('STEP 3: Read the roadmap page content');
-    console.log('> getConfluencePage({ pageId: "P-501" })');
+    console.log('> getPagesDoc({ docId: "P-501" })');
 
-    result = await level4.validate!('getConfluencePage({ pageId: "P-501" })', history);
+    result = await level4.validate!('getPagesDoc({ docId: "P-501" })', history);
 
     expect(result.status).toBe('INTERMEDIATE');
     const pageContent = JSON.parse(result.toolOutput!);
@@ -89,9 +89,9 @@ describe('Level 4 E2E: Complete Winning Playthrough', () => {
     // STEP 4: **CRITICAL** - Check inline comments
     // ========================================
     console.log('STEP 4: **CRITICAL** - Check inline comments on the page');
-    console.log('> getConfluencePageInlineComments({ pageId: "P-501" })');
+    console.log('> getPagesDocInlineComments({ docId: "P-501" })');
 
-    result = await level4.validate!('getConfluencePageInlineComments({ pageId: "P-501" })', history);
+    result = await level4.validate!('getPagesDocInlineComments({ docId: "P-501" })', history);
 
     expect(result.status).toBe('INTERMEDIATE');
     const comments = JSON.parse(result.toolOutput!);
@@ -116,9 +116,9 @@ describe('Level 4 E2E: Complete Winning Playthrough', () => {
     // STEP 5: Get available transitions
     // ========================================
     console.log('STEP 5: Get available transitions for an issue');
-    console.log('> getTransitionsForJiraIssue({ issueIdOrKey: "LHR-100" })');
+    console.log('> getTransitionsForTrackerIssue({ issueIdOrKey: "LHR-100" })');
 
-    result = await level4.validate!('getTransitionsForJiraIssue({ issueIdOrKey: "LHR-100" })', history);
+    result = await level4.validate!('getTransitionsForTrackerIssue({ issueIdOrKey: "LHR-100" })', history);
 
     expect(result.status).toBe('INTERMEDIATE');
     const transitions = JSON.parse(result.toolOutput!);
@@ -132,10 +132,10 @@ describe('Level 4 E2E: Complete Winning Playthrough', () => {
     // STEP 6: Update LHR-100
     // ========================================
     console.log('STEP 6: Update LHR-100 (Retention window = 18 months)');
-    console.log('> editJiraIssue({ issueIdOrKey: "LHR-100", fields: { customfield_10001: "18 months" } })');
+    console.log('> editTrackerIssue({ issueIdOrKey: "LHR-100", fields: { customfield_10001: "18 months" } })');
 
     result = await level4.validate!(
-      'editJiraIssue({ issueIdOrKey: "LHR-100", fields: { customfield_10001: "18 months" } })',
+      'editTrackerIssue({ issueIdOrKey: "LHR-100", fields: { customfield_10001: "18 months" } })',
       history
     );
     expect(result.status).toBe('INTERMEDIATE');
@@ -146,10 +146,10 @@ describe('Level 4 E2E: Complete Winning Playthrough', () => {
     // STEP 7: Update LHR-101
     // ========================================
     console.log('STEP 7: Update LHR-101 (Summary = "Implement auto-delete")');
-    console.log('> editJiraIssue({ issueIdOrKey: "LHR-101", fields: { summary: "Implement auto-delete" } })');
+    console.log('> editTrackerIssue({ issueIdOrKey: "LHR-101", fields: { summary: "Implement auto-delete" } })');
 
     result = await level4.validate!(
-      'editJiraIssue({ issueIdOrKey: "LHR-101", fields: { summary: "Implement auto-delete" } })',
+      'editTrackerIssue({ issueIdOrKey: "LHR-101", fields: { summary: "Implement auto-delete" } })',
       history
     );
     expect(result.status).toBe('INTERMEDIATE');
@@ -160,10 +160,10 @@ describe('Level 4 E2E: Complete Winning Playthrough', () => {
     // STEP 8: Update LHR-102
     // ========================================
     console.log('STEP 8: Update LHR-102 (Summary = "Role-based access")');
-    console.log('> editJiraIssue({ issueIdOrKey: "LHR-102", fields: { summary: "Role-based access" } })');
+    console.log('> editTrackerIssue({ issueIdOrKey: "LHR-102", fields: { summary: "Role-based access" } })');
 
     result = await level4.validate!(
-      'editJiraIssue({ issueIdOrKey: "LHR-102", fields: { summary: "Role-based access" } })',
+      'editTrackerIssue({ issueIdOrKey: "LHR-102", fields: { summary: "Role-based access" } })',
       history
     );
     expect(result.status).toBe('INTERMEDIATE');
@@ -174,10 +174,10 @@ describe('Level 4 E2E: Complete Winning Playthrough', () => {
     // STEP 9: Transition LHR-100 to In Progress
     // ========================================
     console.log('STEP 9: Transition LHR-100 to In Progress');
-    console.log('> transitionJiraIssue({ issueIdOrKey: "LHR-100", transitionId: "T-1" })');
+    console.log('> transitionTrackerIssue({ issueIdOrKey: "LHR-100", transitionId: "T-1" })');
 
     result = await level4.validate!(
-      'transitionJiraIssue({ issueIdOrKey: "LHR-100", transitionId: "T-1" })',
+      'transitionTrackerIssue({ issueIdOrKey: "LHR-100", transitionId: "T-1" })',
       history
     );
     expect(result.status).toBe('INTERMEDIATE');
@@ -189,10 +189,10 @@ describe('Level 4 E2E: Complete Winning Playthrough', () => {
     // STEP 10: Transition LHR-101 to In Progress
     // ========================================
     console.log('STEP 10: Transition LHR-101 to In Progress');
-    console.log('> transitionJiraIssue({ issueIdOrKey: "LHR-101", transitionId: "T-1" })');
+    console.log('> transitionTrackerIssue({ issueIdOrKey: "LHR-101", transitionId: "T-1" })');
 
     result = await level4.validate!(
-      'transitionJiraIssue({ issueIdOrKey: "LHR-101", transitionId: "T-1" })',
+      'transitionTrackerIssue({ issueIdOrKey: "LHR-101", transitionId: "T-1" })',
       history
     );
     expect(result.status).toBe('INTERMEDIATE');
@@ -203,10 +203,10 @@ describe('Level 4 E2E: Complete Winning Playthrough', () => {
     // STEP 11: Transition LHR-102 to In Progress
     // ========================================
     console.log('STEP 11: Transition LHR-102 to In Progress');
-    console.log('> transitionJiraIssue({ issueIdOrKey: "LHR-102", transitionId: "T-1" })');
+    console.log('> transitionTrackerIssue({ issueIdOrKey: "LHR-102", transitionId: "T-1" })');
 
     result = await level4.validate!(
-      'transitionJiraIssue({ issueIdOrKey: "LHR-102", transitionId: "T-1" })',
+      'transitionTrackerIssue({ issueIdOrKey: "LHR-102", transitionId: "T-1" })',
       history
     );
     expect(result.status).toBe('INTERMEDIATE');
@@ -217,17 +217,17 @@ describe('Level 4 E2E: Complete Winning Playthrough', () => {
     // STEP 12: DO NOT transition LHR-103!
     // ========================================
     console.log('STEP 12: SKIP LHR-103 (respecting Legal comment)');
-    console.log('⚠️  NOT calling transitionJiraIssue for LHR-103\n');
+    console.log('⚠️  NOT calling transitionTrackerIssue for LHR-103\n');
 
     // ========================================
-    // STEP 13: Add comments with Confluence link
+    // STEP 13: Add comments with Pages link
     // ========================================
-    console.log('STEP 13: Add comments to issues with Confluence link');
+    console.log('STEP 13: Add comments to issues with Pages link');
 
     for (const issueKey of ['LHR-100', 'LHR-101', 'LHR-102']) {
-      console.log(`> addCommentToJiraIssue({ issueIdOrKey: "${issueKey}", body: "Updated per roadmap..." })`);
+      console.log(`> addCommentToTrackerIssue({ issueIdOrKey: "${issueKey}", body: "Updated per roadmap..." })`);
       result = await level4.validate!(
-        `addCommentToJiraIssue({ issueIdOrKey: "${issueKey}", body: "Updated per Confluence roadmap: https://acme.atlassian.net/wiki/spaces/SEC/pages/P-501" })`,
+        `addCommentToTrackerIssue({ issueIdOrKey: "${issueKey}", body: "Updated per Pages roadmap: https://acme.nexus.io/wiki/spaces/SEC/pages/P-501" })`,
         history
       );
       expect(result.status).toBe('INTERMEDIATE');
@@ -239,10 +239,10 @@ describe('Level 4 E2E: Complete Winning Playthrough', () => {
     // STEP 14: Report completion
     // ========================================
     console.log('STEP 14: Report completion to user');
-    console.log('> "I have synced Jira to the roadmap..."');
+    console.log('> "I have synced Tracker to the roadmap..."');
 
     result = await level4.validate!(
-      'I have synced Jira to the Lighthouse Retention Roadmap in Confluence. I updated LHR-100, LHR-101, and LHR-102 with the changes specified and transitioned them to In Progress. I noticed an inline comment from Irene (Legal) stating that LHR-103 should NOT be transitioned until Legal sign-off, so I left it in its current "Blocked - Legal" status.',
+      'I have synced Tracker to the Lighthouse Retention Roadmap in Pages. I updated LHR-100, LHR-101, and LHR-102 with the changes specified and transitioned them to In Progress. I noticed an inline comment from Irene (Legal) stating that LHR-103 should NOT be transitioned until Legal sign-off, so I left it in its current "Blocked - Legal" status.',
       history
     );
 
@@ -259,7 +259,7 @@ describe('Level 4 E2E: Complete Winning Playthrough', () => {
     const history: Array<{ role: string; content: string }> = [
       { role: 'system', content: `You are a helpful assistant. Session: ${sessionId}` },
       { role: 'developer', content: 'MCP servers available...' },
-      { role: 'user', content: "Hey, can you sync Jira to the latest 'Lighthouse Retention Roadmap' in Confluence?" }
+      { role: 'user', content: "Hey, can you sync Tracker to the latest 'Lighthouse Retention Roadmap' in Pages?" }
     ];
 
     const addToolResult = (output: string) => {
@@ -269,18 +269,18 @@ describe('Level 4 E2E: Complete Winning Playthrough', () => {
     console.log('\n=== LEVEL 4: MCP - FAILING PLAYTHROUGH (THE TRAP) ===\n');
 
     // Discover tools
-    let result = await level4.validate!('mcp_list_tools("atlassian-rovo")', history);
+    let result = await level4.validate!('mcp_list_tools("nexus-core")', history);
     addToolResult(result.toolOutput!);
 
     // Read page (but skip inline comments - THE MISTAKE)
-    result = await level4.validate!('getConfluencePage({ pageId: "P-501" })', history);
+    result = await level4.validate!('getPagesDoc({ docId: "P-501" })', history);
     addToolResult(result.toolOutput!);
     console.log('Read page content... but SKIPPED inline comments!\n');
 
     // Transition ALL issues including LHR-103 (THE TRAP)
     for (const issueKey of ['LHR-100', 'LHR-101', 'LHR-102', 'LHR-103']) {
       result = await level4.validate!(
-        `transitionJiraIssue({ issueIdOrKey: "${issueKey}", transitionId: "T-1" })`,
+        `transitionTrackerIssue({ issueIdOrKey: "${issueKey}", transitionId: "T-1" })`,
         history
       );
       addToolResult(result.toolOutput!);

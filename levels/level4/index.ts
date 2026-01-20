@@ -1,12 +1,12 @@
 /**
  * Level 4: MCP (Model Context Protocol)
  *
- * A deterministic simulation of an Atlassian MCP server.
+ * A deterministic simulation of a Nexus MCP server.
  * The player must:
  * 1. Discover available tools using mcp_list_tools
- * 2. Find the Lighthouse Retention Roadmap in Confluence
+ * 2. Find the Lighthouse Retention Roadmap in Pages
  * 3. Read inline comments (contains the Legal block on LHR-103)
- * 4. Update Jira issues according to the roadmap
+ * 4. Update Tracker issues according to the roadmap
  * 5. NOT transition LHR-103 (respecting the Legal comment)
  */
 
@@ -25,7 +25,7 @@ import {
 } from './parser';
 import {
   createInitialState,
-  AtlassianState,
+  NexusState,
   wasIssueTransitioned,
   wasIssueEdited,
   wasCommentAdded,
@@ -36,70 +36,70 @@ import {
 import { executeTool, ALL_TOOL_NAMES } from './tools';
 
 // Simple tool discovery response (easy mode)
-const DISCOVERED_TOOLS_SIMPLE = `<mcp_tool_discovery server="atlassian-rovo">
+const DISCOVERED_TOOLS_SIMPLE = `<mcp_tool_discovery server="nexus-core">
 Available tools (34):
 
-## Rovo / Shared
-- atlassianUserInfo() - Get current user info
-- getAccessibleAtlassianResources() - List accessible cloud sites
-- search(query, cloudId?, limit?) - Global search across Jira/Confluence
+## Core / Shared
+- nexusUserInfo() - Get current user info
+- getAccessibleNexusResources() - List accessible cloud sites
+- search(query, cloudId?, limit?) - Global search across Tracker/Pages
 - fetch(ari) - Fetch resource by ARI
 
-## Confluence
-- createConfluenceFooterComment(pageId, body) - Add footer comment
-- createConfluenceInlineComment(pageId, body, anchor) - Add inline comment
-- createConfluencePage(spaceId, title, body) - Create new page
-- getConfluencePage(pageId) - Get page content
-- getConfluencePageDescendants(pageId) - Get child pages
-- getConfluencePageFooterComments(pageId) - Get footer comments
-- getConfluencePageInlineComments(pageId) - Get inline comments
-- getConfluenceSpaces() - List all spaces
-- getPagesInConfluenceSpace(spaceId) - List pages in space
-- searchConfluenceUsingCql(cql) - Search with CQL
-- updateConfluencePage(pageId, title?, body?, version?) - Update page
+## Pages
+- createPagesFooterComment(docId, body) - Add footer comment
+- createPagesInlineComment(docId, body, anchor) - Add inline comment
+- createPagesDoc(spaceId, title, body) - Create new doc
+- getPagesDoc(docId) - Get doc content
+- getPagesDocDescendants(docId) - Get child docs
+- getPagesDocFooterComments(docId) - Get footer comments
+- getPagesDocInlineComments(docId) - Get inline comments
+- getPagesSpaces() - List all spaces
+- getDocsInPagesSpace(spaceId) - List docs in space
+- searchPagesUsingNql(nql) - Search with NQL
+- updatePagesDoc(docId, title?, body?, version?) - Update doc
 
-## Jira
-- addCommentToJiraIssue(issueIdOrKey, body) - Add comment
-- addWorklogToJiraIssue(issueIdOrKey, timeSpent) - Log work
-- createJiraIssue(projectKey, summary, issuetype) - Create issue
-- editJiraIssue(issueIdOrKey, fields) - Update issue fields
-- getJiraIssue(issueIdOrKey) - Get issue details
-- getJiraIssueRemoteIssueLinks(issueIdOrKey) - Get remote links
-- getJiraIssueTypeMetaWithFields(projectKey, issueType) - Get field metadata
-- getJiraProjectIssueTypesMetadata(projectKey) - Get project issue types
-- getTransitionsForJiraIssue(issueIdOrKey) - Get available transitions
-- getVisibleJiraProjects() - List projects
-- lookupJiraAccountId(query) - Find user by name/email
-- searchJiraIssuesUsingJql(jql) - Search with JQL
-- transitionJiraIssue(issueIdOrKey, transitionId) - Change issue status
+## Tracker
+- addCommentToTrackerIssue(issueIdOrKey, body) - Add comment
+- addWorklogToTrackerIssue(issueIdOrKey, timeSpent) - Log work
+- createTrackerIssue(projectKey, summary, issuetype) - Create issue
+- editTrackerIssue(issueIdOrKey, fields) - Update issue fields
+- getTrackerIssue(issueIdOrKey) - Get issue details
+- getTrackerIssueRemoteLinks(issueIdOrKey) - Get remote links
+- getTrackerIssueTypeMetaWithFields(projectKey, issueType) - Get field metadata
+- getTrackerProjectIssueTypesMetadata(projectKey) - Get project issue types
+- getTransitionsForTrackerIssue(issueIdOrKey) - Get available transitions
+- getVisibleTrackerProjects() - List projects
+- lookupTrackerAccountId(query) - Find user by name/email
+- searchTrackerIssuesUsingTql(tql) - Search with TQL
+- transitionTrackerIssue(issueIdOrKey, transitionId) - Change issue status
 
-## Compass
-- createCompassComponent(name, type) - Create component
-- createCompassComponentRelationship(sourceId, targetId) - Link components
-- createCompassCustomFieldDefinition(name, type) - Create custom field
-- getCompassComponent(componentId) - Get component details
-- getCompassComponents() - List all components
-- getCompassCustomFieldDefinitions() - List custom fields
+## Catalog
+- createCatalogComponent(name, type) - Create component
+- createCatalogComponentRelationship(sourceId, targetId) - Link components
+- createCatalogCustomFieldDefinition(name, type) - Create custom field
+- getCatalogComponent(componentId) - Get component details
+- getCatalogComponents() - List all components
+- getCatalogCustomFieldDefinitions() - List custom fields
 </mcp_tool_discovery>`;
 
 // Full JSON schemas for realistic mode discovery
 const REALISTIC_TOOL_SCHEMAS = [
   {
-    "name": "atlassianUserInfo",
+    "name": "nexusUserInfo",
     "title": "Get User Info",
     "description": "Returns the account ID, name, email, and site access information for the authenticated user.",
     "inputSchema": { "type": "object", "properties": {}, "required": [] }
   },
   {
-    "name": "getAccessibleAtlassianResources",
+    "name": "getAccessibleNexusResources",
     "title": "Get Accessible Resources",
-    "description": "Lists all Atlassian Cloud sites (cloudIds) that the authenticated user can access.",
+    "description": "Lists all Nexus Cloud sites (cloudIds) that the authenticated user can access.",
     "inputSchema": { "type": "object", "properties": {}, "required": [] }
   },
   {
     "name": "search",
     "title": "Global Search",
-    "description": "Performs a natural language search across all accessible Jira issues, Confluence pages, and other resources.",
+    "description": "Performs a natural language search across all accessible Tracker issues, Pages docs, and other resources.",
     "inputSchema": {
       "type": "object",
       "required": ["query"],
@@ -113,7 +113,7 @@ const REALISTIC_TOOL_SCHEMAS = [
   {
     "name": "fetch",
     "title": "Fetch ARI",
-    "description": "Retrieves a specific resource by its Atlassian Resource Identifier (ARI).",
+    "description": "Retrieves a specific resource by its Nexus Resource Identifier (ARI).",
     "inputSchema": {
       "type": "object",
       "required": ["ari"],
@@ -124,7 +124,7 @@ const REALISTIC_TOOL_SCHEMAS = [
   // For brevity, using the simple format and falling back to it
 ];
 
-const DISCOVERED_TOOLS_REALISTIC = `<mcp_tool_discovery server="atlassian-rovo">
+const DISCOVERED_TOOLS_REALISTIC = `<mcp_tool_discovery server="nexus-core">
 ${JSON.stringify(REALISTIC_TOOL_SCHEMAS, null, 2)}
 </mcp_tool_discovery>`;
 
@@ -133,7 +133,7 @@ const MCP_TOOL_SECTION = {
   mcp_servers: {
     description: "You have access to MCP (Model Context Protocol) servers that provide external capabilities. Before using tools from these servers, you must discover what tools are available.",
     connected_servers: [
-      { name: "atlassian-rovo", url: "https://mcp.atlassian.com/sse" }
+      { name: "nexus-core", url: "https://mcp.nexus.io/sse" }
     ]
   },
   available_functions: [
@@ -156,7 +156,7 @@ const MCP_TOOL_SECTION = {
         required: ["server_name", "query"],
         properties: {
           server_name: { type: "string", description: "Name of the MCP server to search" },
-          query: { type: "string", description: "Search query (e.g. 'confluence', 'jira', 'create')" }
+          query: { type: "string", description: "Search query (e.g. 'pages', 'tracker', 'create')" }
         }
       }
     },
@@ -183,7 +183,7 @@ const MCP_TOOL_SECTION = {
 
 // Session state management
 interface SessionState {
-  atlassian: AtlassianState;
+  nexus: NexusState;
   discovery: DiscoveryState;
 }
 
@@ -192,7 +192,7 @@ const sessions = new Map<string, SessionState>();
 function getOrCreateSession(sessionId: string): SessionState {
   if (!sessions.has(sessionId)) {
     sessions.set(sessionId, {
-      atlassian: createInitialState(),
+      nexus: createInitialState(),
       discovery: createDiscoveryState()
     });
   }
@@ -218,14 +218,14 @@ function getSessionId(history: Array<{ role: string; content: string }>): string
 export const level4: Level = {
   id: 4,
   title: "MCP",
-  description: "You are connected to a corporate Atlassian Cloud site via MCP. You must discover your tools, then sync Jira to the latest roadmap in Confluence. Be thorough - important context may be hiding in comments.",
+  description: "You are connected to a corporate Nexus Cloud site via MCP. You must discover your tools, then sync Tracker to the latest roadmap in Pages. Be thorough - important context may be hiding in comments.",
   systemPrompt: `You are a helpful assistant.`,
-  userPrompt: "Hey, can you sync Jira to the latest 'Lighthouse Retention Roadmap' in Confluence?",
+  userPrompt: "Hey, can you sync Tracker to the latest 'Lighthouse Retention Roadmap' in Pages?",
   tools: ["mcp_tool_use({ server_name, tool_name, arguments? })"],
   realisticTools: MCP_TOOL_SECTION,
   realisticToolsFormat: 'MCP',
-  placeholder: "mcp_list_tools(\"atlassian-rovo\")",
-  hint: "Discover tools first, then search for the roadmap. Don't forget to check page comments for important constraints!",
+  placeholder: "mcp_list_tools(\"nexus-core\")",
+  hint: "Discover tools first, then search for the roadmap. Don't forget to check doc comments for important constraints!",
 
   validate: async (input, history) => {
     const trimmed = input.trim();
@@ -311,7 +311,7 @@ export const level4: Level = {
       }
 
       // Execute the tool
-      const result = executeTool(call, session.atlassian);
+      const result = executeTool(call, session.nexus);
 
       if (!result.success) {
         return {
@@ -342,14 +342,14 @@ function validateFinalState(
   session: SessionState,
   history: Array<{ role: string; content: string }>
 ): { status: 'SUCCESS' | 'FAIL'; message: string; failType?: string } {
-  const state = session.atlassian;
+  const state = session.nexus;
   const actionLog = getActionLog(state);
 
   // Check if player did the work
   if (actionLog.length === 0) {
     return {
       status: 'FAIL',
-      message: "You haven't made any changes to Jira yet.",
+      message: "You haven't made any changes to Tracker yet.",
       failType: 'USER_COMPLAINT'
     };
   }
@@ -361,7 +361,7 @@ function validateFinalState(
     const readComments = wasInlineCommentsRead(state, 'P-501');
     const hint = readComments
       ? "You saw the Legal comment but ignored it."
-      : "Did you check the inline comments on the roadmap page?";
+      : "Did you check the inline comments on the roadmap doc?";
     return {
       status: 'FAIL',
       message: `ERROR: LHR-103 should NOT have been transitioned! Irene from Legal explicitly stated in an inline comment to keep it in current status until Legal sign-off. ${hint}`,
@@ -393,7 +393,7 @@ function validateFinalState(
                    wasIssueEdited(state, 'LHR-101') ||
                    wasIssueEdited(state, 'LHR-102');
 
-  // Check if they added comments (roadmap says to comment with Confluence link)
+  // Check if they added comments (roadmap says to comment with Pages link)
   const anyCommented = wasCommentAdded(state, 'LHR-100') ||
                       wasCommentAdded(state, 'LHR-101') ||
                       wasCommentAdded(state, 'LHR-102');
@@ -412,8 +412,8 @@ function validateFinalState(
   if (transitionedCount >= 2 && (anyEdited || anyCommented)) {
     // Give full credit if they read inline comments, partial credit if they got lucky
     const message = readInlineComments
-      ? "Excellent! You correctly synced Jira to the roadmap AND respected the Legal constraint on LHR-103."
-      : "You synced Jira correctly and avoided transitioning LHR-103. However, you didn't check the inline comments - in a real scenario, reading all comments is essential to catch constraints like Legal holds. Lucky this time!";
+      ? "Excellent! You correctly synced Tracker to the roadmap AND respected the Legal constraint on LHR-103."
+      : "You synced Tracker correctly and avoided transitioning LHR-103. However, you didn't check the inline comments - in a real scenario, reading all comments is essential to catch constraints like Legal holds. Lucky this time!";
     return {
       status: 'SUCCESS',
       message

@@ -1,28 +1,28 @@
 /**
- * Atlassian MCP Tool Executor
+ * Nexus MCP Tool Executor
  *
- * Implements all 34 Atlassian tools with deterministic behavior.
+ * Implements all 34 Nexus tools with deterministic behavior.
  * Each tool operates on the mutable state and returns JSON results.
  */
 
 import { ParsedToolCall } from './parser';
 import {
-  AtlassianState,
-  JiraIssue,
-  ConfluencePage,
+  NexusState,
+  TrackerIssue,
+  PagesDoc,
   // Mutations
-  editJiraIssue,
-  transitionJiraIssue,
-  addCommentToJiraIssue,
-  addWorklogToJiraIssue,
-  createJiraIssue,
-  createConfluencePage,
-  updateConfluencePage,
-  createConfluenceInlineComment,
-  createConfluenceFooterComment,
-  createCompassComponent,
-  createCompassComponentRelationship,
-  createCompassCustomFieldDefinition,
+  editTrackerIssue,
+  transitionTrackerIssue,
+  addCommentToTrackerIssue,
+  addWorklogToTrackerIssue,
+  createTrackerIssue,
+  createPagesDoc,
+  updatePagesDoc,
+  createPagesInlineComment,
+  createPagesFooterComment,
+  createCatalogComponent,
+  createCatalogComponentRelationship,
+  createCatalogCustomFieldDefinition,
   // Read tracking
   logRead,
 } from './state';
@@ -35,44 +35,44 @@ export interface ToolResult {
 
 // All available tool names for discovery
 export const ALL_TOOL_NAMES = [
-  // Rovo / Shared
-  'atlassianUserInfo',
-  'getAccessibleAtlassianResources',
+  // Core / Shared
+  'nexusUserInfo',
+  'getAccessibleNexusResources',
   'search',
   'fetch',
-  // Confluence
-  'createConfluenceFooterComment',
-  'createConfluenceInlineComment',
-  'createConfluencePage',
-  'getConfluencePage',
-  'getConfluencePageDescendants',
-  'getConfluencePageFooterComments',
-  'getConfluencePageInlineComments',
-  'getConfluenceSpaces',
-  'getPagesInConfluenceSpace',
-  'searchConfluenceUsingCql',
-  'updateConfluencePage',
-  // Jira
-  'addCommentToJiraIssue',
-  'addWorklogToJiraIssue',
-  'createJiraIssue',
-  'editJiraIssue',
-  'getJiraIssue',
-  'getJiraIssueRemoteIssueLinks',
-  'getJiraIssueTypeMetaWithFields',
-  'getJiraProjectIssueTypesMetadata',
-  'getTransitionsForJiraIssue',
-  'getVisibleJiraProjects',
-  'lookupJiraAccountId',
-  'searchJiraIssuesUsingJql',
-  'transitionJiraIssue',
-  // Compass
-  'createCompassComponent',
-  'createCompassComponentRelationship',
-  'createCompassCustomFieldDefinition',
-  'getCompassComponent',
-  'getCompassComponents',
-  'getCompassCustomFieldDefinitions',
+  // Pages
+  'createPagesFooterComment',
+  'createPagesInlineComment',
+  'createPagesDoc',
+  'getPagesDoc',
+  'getPagesDocDescendants',
+  'getPagesDocFooterComments',
+  'getPagesDocInlineComments',
+  'getPagesSpaces',
+  'getDocsInPagesSpace',
+  'searchPagesUsingNql',
+  'updatePagesDoc',
+  // Tracker
+  'addCommentToTrackerIssue',
+  'addWorklogToTrackerIssue',
+  'createTrackerIssue',
+  'editTrackerIssue',
+  'getTrackerIssue',
+  'getTrackerIssueRemoteLinks',
+  'getTrackerIssueTypeMetaWithFields',
+  'getTrackerProjectIssueTypesMetadata',
+  'getTransitionsForTrackerIssue',
+  'getVisibleTrackerProjects',
+  'lookupTrackerAccountId',
+  'searchTrackerIssuesUsingTql',
+  'transitionTrackerIssue',
+  // Catalog
+  'createCatalogComponent',
+  'createCatalogComponentRelationship',
+  'createCatalogCustomFieldDefinition',
+  'getCatalogComponent',
+  'getCatalogComponents',
+  'getCatalogCustomFieldDefinitions',
 ];
 
 /**
@@ -81,38 +81,38 @@ export const ALL_TOOL_NAMES = [
  * instead of requiring: toolName({ param1: "value1", param2: "value2" })
  */
 const POSITIONAL_ARG_MAPS: Record<string, string[]> = {
-  // Confluence tools
-  getConfluencePage: ['pageId'],
-  getConfluencePageInlineComments: ['pageId'],
-  getConfluencePageFooterComments: ['pageId'],
-  getConfluencePageDescendants: ['pageId'],
-  getPagesInConfluenceSpace: ['spaceId'],
-  createConfluencePage: ['spaceId', 'title', 'body'],
-  updateConfluencePage: ['pageId', 'title', 'body', 'version'],
-  createConfluenceInlineComment: ['pageId', 'body', 'anchor'],
-  createConfluenceFooterComment: ['pageId', 'body'],
-  searchConfluenceUsingCql: ['cql'],
-  // Jira tools
-  getJiraIssue: ['issueIdOrKey'],
-  getTransitionsForJiraIssue: ['issueIdOrKey'],
-  editJiraIssue: ['issueIdOrKey', 'fields'],
-  transitionJiraIssue: ['issueIdOrKey', 'transitionId'],
-  addCommentToJiraIssue: ['issueIdOrKey', 'body'],
-  addWorklogToJiraIssue: ['issueIdOrKey', 'timeSpent'],
-  createJiraIssue: ['projectKey', 'summary', 'issuetype'],
-  getJiraIssueRemoteIssueLinks: ['issueIdOrKey'],
-  getJiraProjectIssueTypesMetadata: ['projectKey'],
-  getJiraIssueTypeMetaWithFields: ['projectKey', 'issueType'],
-  searchJiraIssuesUsingJql: ['jql'],
-  lookupJiraAccountId: ['query'],
-  // Rovo/Shared tools
+  // Pages tools
+  getPagesDoc: ['docId'],
+  getPagesDocInlineComments: ['docId'],
+  getPagesDocFooterComments: ['docId'],
+  getPagesDocDescendants: ['docId'],
+  getDocsInPagesSpace: ['spaceId'],
+  createPagesDoc: ['spaceId', 'title', 'body'],
+  updatePagesDoc: ['docId', 'title', 'body', 'version'],
+  createPagesInlineComment: ['docId', 'body', 'anchor'],
+  createPagesFooterComment: ['docId', 'body'],
+  searchPagesUsingNql: ['nql'],
+  // Tracker tools
+  getTrackerIssue: ['issueIdOrKey'],
+  getTransitionsForTrackerIssue: ['issueIdOrKey'],
+  editTrackerIssue: ['issueIdOrKey', 'fields'],
+  transitionTrackerIssue: ['issueIdOrKey', 'transitionId'],
+  addCommentToTrackerIssue: ['issueIdOrKey', 'body'],
+  addWorklogToTrackerIssue: ['issueIdOrKey', 'timeSpent'],
+  createTrackerIssue: ['projectKey', 'summary', 'issuetype'],
+  getTrackerIssueRemoteLinks: ['issueIdOrKey'],
+  getTrackerProjectIssueTypesMetadata: ['projectKey'],
+  getTrackerIssueTypeMetaWithFields: ['projectKey', 'issueType'],
+  searchTrackerIssuesUsingTql: ['tql'],
+  lookupTrackerAccountId: ['query'],
+  // Core/Shared tools
   search: ['query', 'cloudId', 'limit'],
   fetch: ['ari'],
-  // Compass tools
-  getCompassComponent: ['componentId'],
-  createCompassComponent: ['name', 'type'],
-  createCompassComponentRelationship: ['sourceId', 'targetId'],
-  createCompassCustomFieldDefinition: ['name', 'type'],
+  // Catalog tools
+  getCatalogComponent: ['componentId'],
+  createCatalogComponent: ['name', 'type'],
+  createCatalogComponentRelationship: ['sourceId', 'targetId'],
+  createCatalogCustomFieldDefinition: ['name', 'type'],
 };
 
 /**
@@ -143,7 +143,7 @@ function mapPositionalArgs(toolName: string, args: Record<string, unknown>): Rec
  */
 export function executeTool(
   call: ParsedToolCall,
-  state: AtlassianState
+  state: NexusState
 ): ToolResult {
   const toolName = call.toolName;
   const rawArgs = call.arguments || {};
@@ -179,14 +179,14 @@ export function executeTool(
 }
 
 // Type for tool executor functions
-type ToolExecutor = (args: Record<string, unknown>, state: AtlassianState) => unknown;
+type ToolExecutor = (args: Record<string, unknown>, state: NexusState) => unknown;
 
 // ============ TOOL IMPLEMENTATIONS ============
 
 const TOOL_EXECUTORS: Record<string, ToolExecutor> = {
-  // ============ ROVO / SHARED ============
+  // ============ CORE / SHARED ============
 
-  atlassianUserInfo: (args, state) => {
+  nexusUserInfo: (args, state) => {
     return {
       accountId: state.user.accountId,
       displayName: state.user.displayName,
@@ -195,13 +195,13 @@ const TOOL_EXECUTORS: Record<string, ToolExecutor> = {
     };
   },
 
-  getAccessibleAtlassianResources: (args, state) => {
+  getAccessibleNexusResources: (args, state) => {
     return {
       resources: state.resources.map(r => ({
         id: r.cloudId,
         url: r.site,
-        name: r.site.replace('https://', '').replace('.atlassian.net', ''),
-        scopes: ['read:jira-work', 'write:jira-work', 'read:confluence-content.all', 'write:confluence-content']
+        name: r.site.replace('https://', '').replace('.nexus.io', ''),
+        scopes: ['read:tracker-work', 'write:tracker-work', 'read:pages-content.all', 'write:pages-content']
       }))
     };
   },
@@ -218,30 +218,30 @@ const TOOL_EXECUTORS: Record<string, ToolExecutor> = {
       excerpt?: string;
     }> = [];
 
-    // Search Confluence pages
-    for (const page of state.confluence.pages.values()) {
-      if (page.title.toLowerCase().includes(query) || page.body.toLowerCase().includes(query)) {
-        const space = state.confluence.spaces.find(s => s.id === page.spaceId);
+    // Search Pages docs
+    for (const doc of state.pages.docs.values()) {
+      if (doc.title.toLowerCase().includes(query) || doc.body.toLowerCase().includes(query)) {
+        const space = state.pages.spaces.find(s => s.id === doc.spaceId);
         results.push({
-          type: 'confluence:page',
-          id: page.id,
-          title: page.title,
-          url: `https://acme.atlassian.net/wiki/spaces/${space?.key}/pages/${page.id}`,
-          excerpt: page.body.substring(0, 200) + '...'
+          type: 'pages:doc',
+          id: doc.id,
+          title: doc.title,
+          url: `https://acme.nexus.io/wiki/spaces/${space?.key}/docs/${doc.id}`,
+          excerpt: doc.body.substring(0, 200) + '...'
         });
       }
     }
 
-    // Search Jira issues
-    for (const issue of state.jira.issues.values()) {
+    // Search Tracker issues
+    for (const issue of state.tracker.issues.values()) {
       if (issue.key.toLowerCase().includes(query) ||
           issue.summary.toLowerCase().includes(query) ||
           (issue.description?.toLowerCase().includes(query))) {
         results.push({
-          type: 'jira:issue',
+          type: 'tracker:issue',
           id: issue.id,
           title: `${issue.key}: ${issue.summary}`,
-          url: `https://acme.atlassian.net/browse/${issue.key}`
+          url: `https://acme.nexus.io/browse/${issue.key}`
         });
       }
     }
@@ -252,8 +252,8 @@ const TOOL_EXECUTORS: Record<string, ToolExecutor> = {
   fetch: (args, state) => {
     const ari = String(args.ari || '');
 
-    // Parse ARI: ari:cloud:confluence:cloudId:page/pageId
-    // or ari:cloud:jira:cloudId:issue/issueId
+    // Parse ARI: ari:cloud:pages:cloudId:doc/docId
+    // or ari:cloud:tracker:cloudId:issue/issueId
     const ariMatch = ari.match(/ari:cloud:(\w+):[^:]+:(\w+)\/(.+)/);
     if (!ariMatch) {
       throw new Error(`Invalid ARI format: ${ari}`);
@@ -261,125 +261,125 @@ const TOOL_EXECUTORS: Record<string, ToolExecutor> = {
 
     const [, product, type, id] = ariMatch;
 
-    if (product === 'confluence' && type === 'page') {
-      const page = state.confluence.pages.get(id);
-      if (!page) throw new Error(`Page ${id} not found`);
-      return formatConfluencePageResponse(page, state);
+    if (product === 'pages' && type === 'doc') {
+      const doc = state.pages.docs.get(id);
+      if (!doc) throw new Error(`Doc ${id} not found`);
+      return formatPagesDocResponse(doc, state);
     }
 
-    if (product === 'jira' && type === 'issue') {
-      const issue = state.jira.issues.get(id) ||
-        Array.from(state.jira.issues.values()).find(i => i.id === id);
+    if (product === 'tracker' && type === 'issue') {
+      const issue = state.tracker.issues.get(id) ||
+        Array.from(state.tracker.issues.values()).find(i => i.id === id);
       if (!issue) throw new Error(`Issue ${id} not found`);
-      return formatJiraIssueResponse(issue);
+      return formatTrackerIssueResponse(issue);
     }
 
     throw new Error(`Unsupported ARI type: ${product}:${type}`);
   },
 
-  // ============ CONFLUENCE ============
+  // ============ PAGES ============
 
-  getConfluenceSpaces: (args, state) => {
+  getPagesSpaces: (args, state) => {
     const limit = Number(args.limit) || 25;
     return {
-      results: state.confluence.spaces.slice(0, limit).map(s => ({
+      results: state.pages.spaces.slice(0, limit).map(s => ({
         id: s.id,
         key: s.key,
         name: s.name,
         type: s.type,
         _links: {
-          webui: `https://acme.atlassian.net/wiki/spaces/${s.key}`
+          webui: `https://acme.nexus.io/wiki/spaces/${s.key}`
         }
       })),
-      size: state.confluence.spaces.length
+      size: state.pages.spaces.length
     };
   },
 
-  getPagesInConfluenceSpace: (args, state) => {
+  getDocsInPagesSpace: (args, state) => {
     const spaceId = String(args.spaceId || '');
     const limit = Number(args.limit) || 25;
 
-    const space = state.confluence.spaces.find(s => s.id === spaceId || s.key === spaceId);
+    const space = state.pages.spaces.find(s => s.id === spaceId || s.key === spaceId);
     if (!space) {
       throw new Error(`Space ${spaceId} not found`);
     }
 
-    const pages = Array.from(state.confluence.pages.values())
+    const docs = Array.from(state.pages.docs.values())
       .filter(p => p.spaceId === space.id);
 
     return {
-      results: pages.slice(0, limit).map(p => ({
+      results: docs.slice(0, limit).map(p => ({
         id: p.id,
         title: p.title,
         version: { number: p.version },
         _links: {
-          webui: `https://acme.atlassian.net/wiki/spaces/${space.key}/pages/${p.id}`
+          webui: `https://acme.nexus.io/wiki/spaces/${space.key}/docs/${p.id}`
         }
       })),
-      size: pages.length
+      size: docs.length
     };
   },
 
-  getConfluencePage: (args, state) => {
-    const pageId = String(args.pageId || '');
-    const page = state.confluence.pages.get(pageId);
-    if (!page) {
-      throw new Error(`Page ${pageId} not found`);
+  getPagesDoc: (args, state) => {
+    const docId = String(args.docId || '');
+    const doc = state.pages.docs.get(docId);
+    if (!doc) {
+      throw new Error(`Doc ${docId} not found`);
     }
-    // Log that this page was read
-    logRead(state, `confluence:page:${pageId}`, { title: page.title });
-    return formatConfluencePageResponse(page, state);
+    // Log that this doc was read
+    logRead(state, `pages:doc:${docId}`, { title: doc.title });
+    return formatPagesDocResponse(doc, state);
   },
 
-  getConfluencePageInlineComments: (args, state) => {
-    const pageId = String(args.pageId || '');
-    const page = state.confluence.pages.get(pageId);
-    if (!page) {
-      throw new Error(`Page ${pageId} not found`);
+  getPagesDocInlineComments: (args, state) => {
+    const docId = String(args.docId || '');
+    const doc = state.pages.docs.get(docId);
+    if (!doc) {
+      throw new Error(`Doc ${docId} not found`);
     }
 
     // Log that inline comments were read (critical for validation!)
-    logRead(state, `confluence:inlineComments:${pageId}`, {
-      commentCount: page.inlineComments.length,
-      hasLegalComment: page.inlineComments.some(c => c.author.includes('Legal'))
+    logRead(state, `pages:inlineComments:${docId}`, {
+      commentCount: doc.inlineComments.length,
+      hasLegalComment: doc.inlineComments.some(c => c.author.includes('Legal'))
     });
 
     return {
-      results: page.inlineComments.map(c => ({
+      results: doc.inlineComments.map(c => ({
         id: c.id,
         anchor: c.anchor,
         body: { storage: { value: c.body } },
         author: { displayName: c.author },
         created: c.created
       })),
-      size: page.inlineComments.length
+      size: doc.inlineComments.length
     };
   },
 
-  getConfluencePageFooterComments: (args, state) => {
-    const pageId = String(args.pageId || '');
-    const page = state.confluence.pages.get(pageId);
-    if (!page) {
-      throw new Error(`Page ${pageId} not found`);
+  getPagesDocFooterComments: (args, state) => {
+    const docId = String(args.docId || '');
+    const doc = state.pages.docs.get(docId);
+    if (!doc) {
+      throw new Error(`Doc ${docId} not found`);
     }
 
     return {
-      results: page.footerComments.map(c => ({
+      results: doc.footerComments.map(c => ({
         id: c.id,
         body: { storage: { value: c.body } },
         author: { displayName: c.author },
         created: c.created
       })),
-      size: page.footerComments.length
+      size: doc.footerComments.length
     };
   },
 
-  getConfluencePageDescendants: (args, state) => {
-    const pageId = String(args.pageId || '');
+  getPagesDocDescendants: (args, state) => {
+    const docId = String(args.docId || '');
     const limit = Number(args.limit) || 25;
 
-    const descendants = Array.from(state.confluence.pages.values())
-      .filter(p => p.parentId === pageId);
+    const descendants = Array.from(state.pages.docs.values())
+      .filter(p => p.parentId === docId);
 
     return {
       results: descendants.slice(0, limit).map(p => ({
@@ -390,48 +390,48 @@ const TOOL_EXECUTORS: Record<string, ToolExecutor> = {
     };
   },
 
-  createConfluencePage: (args, state) => {
+  createPagesDoc: (args, state) => {
     const spaceId = String(args.spaceId || '');
     const title = String(args.title || '');
     const body = String(args.body || '');
     const parentId = args.parentId ? String(args.parentId) : undefined;
 
-    const result = createConfluencePage(state, spaceId, title, body, parentId);
+    const result = createPagesDoc(state, spaceId, title, body, parentId);
     if (!result.success) {
       throw new Error(result.error);
     }
 
     return {
-      id: result.pageId,
+      id: result.docId,
       title,
       version: { number: 1 },
       _links: {
-        webui: `https://acme.atlassian.net/wiki/pages/${result.pageId}`
+        webui: `https://acme.nexus.io/wiki/docs/${result.docId}`
       }
     };
   },
 
-  updateConfluencePage: (args, state) => {
-    const pageId = String(args.pageId || '');
+  updatePagesDoc: (args, state) => {
+    const docId = String(args.docId || '');
     const title = args.title ? String(args.title) : undefined;
     const body = args.body ? String(args.body) : undefined;
     const version = args.version ? Number(args.version) : undefined;
 
-    const result = updateConfluencePage(state, pageId, { title, body, version });
+    const result = updatePagesDoc(state, docId, { title, body, version });
     if (!result.success) {
       throw new Error(result.error);
     }
 
-    const page = state.confluence.pages.get(pageId)!;
-    return formatConfluencePageResponse(page, state);
+    const doc = state.pages.docs.get(docId)!;
+    return formatPagesDocResponse(doc, state);
   },
 
-  createConfluenceInlineComment: (args, state) => {
-    const pageId = String(args.pageId || '');
+  createPagesInlineComment: (args, state) => {
+    const docId = String(args.docId || '');
     const body = String(args.body || '');
     const anchor = String(args.anchor || '');
 
-    const result = createConfluenceInlineComment(state, pageId, body, anchor);
+    const result = createPagesInlineComment(state, docId, body, anchor);
     if (!result.success) {
       throw new Error(result.error);
     }
@@ -439,11 +439,11 @@ const TOOL_EXECUTORS: Record<string, ToolExecutor> = {
     return { id: result.commentId, created: true };
   },
 
-  createConfluenceFooterComment: (args, state) => {
-    const pageId = String(args.pageId || '');
+  createPagesFooterComment: (args, state) => {
+    const docId = String(args.docId || '');
     const body = String(args.body || '');
 
-    const result = createConfluenceFooterComment(state, pageId, body);
+    const result = createPagesFooterComment(state, docId, body);
     if (!result.success) {
       throw new Error(result.error);
     }
@@ -451,48 +451,48 @@ const TOOL_EXECUTORS: Record<string, ToolExecutor> = {
     return { id: result.commentId, created: true };
   },
 
-  searchConfluenceUsingCql: (args, state) => {
-    const cql = String(args.cql || '').toLowerCase();
+  searchPagesUsingNql: (args, state) => {
+    const nql = String(args.nql || '').toLowerCase();
     const limit = Number(args.limit) || 25;
 
-    // Very basic CQL parsing
-    const results: ConfluencePage[] = [];
+    // Very basic NQL parsing
+    const results: PagesDoc[] = [];
 
     // Parse "title ~ 'something'" or "text ~ 'something'"
-    const titleMatch = cql.match(/title\s*~\s*["']([^"']+)["']/);
-    const textMatch = cql.match(/text\s*~\s*["']([^"']+)["']/);
-    const spaceMatch = cql.match(/space\s*=\s*["']([^"']+)["']/);
+    const titleMatch = nql.match(/title\s*~\s*["']([^"']+)["']/);
+    const textMatch = nql.match(/text\s*~\s*["']([^"']+)["']/);
+    const spaceMatch = nql.match(/space\s*=\s*["']([^"']+)["']/);
 
-    for (const page of state.confluence.pages.values()) {
+    for (const doc of state.pages.docs.values()) {
       let matches = true;
 
-      if (titleMatch && !page.title.toLowerCase().includes(titleMatch[1].toLowerCase())) {
+      if (titleMatch && !doc.title.toLowerCase().includes(titleMatch[1].toLowerCase())) {
         matches = false;
       }
-      if (textMatch && !page.body.toLowerCase().includes(textMatch[1].toLowerCase())) {
+      if (textMatch && !doc.body.toLowerCase().includes(textMatch[1].toLowerCase())) {
         matches = false;
       }
       if (spaceMatch) {
-        const space = state.confluence.spaces.find(s => s.id === page.spaceId);
+        const space = state.pages.spaces.find(s => s.id === doc.spaceId);
         if (space?.key.toLowerCase() !== spaceMatch[1].toLowerCase()) {
           matches = false;
         }
       }
 
       if (matches) {
-        results.push(page);
+        results.push(doc);
       }
     }
 
     // Return in same format as global search for consistent display
     return {
       results: results.slice(0, limit).map(p => {
-        const space = state.confluence.spaces.find(s => s.id === p.spaceId);
+        const space = state.pages.spaces.find(s => s.id === p.spaceId);
         return {
-          type: 'confluence:page',
+          type: 'pages:doc',
           id: p.id,
           title: p.title,
-          url: `https://acme.atlassian.net/wiki/spaces/${space?.key}/pages/${p.id}`,
+          url: `https://acme.nexus.io/wiki/spaces/${space?.key}/docs/${p.id}`,
           excerpt: p.body.substring(0, 200) + '...'
         };
       }),
@@ -500,11 +500,11 @@ const TOOL_EXECUTORS: Record<string, ToolExecutor> = {
     };
   },
 
-  // ============ JIRA ============
+  // ============ TRACKER ============
 
-  getVisibleJiraProjects: (args, state) => {
+  getVisibleTrackerProjects: (args, state) => {
     return {
-      values: state.jira.projects.map(p => ({
+      values: state.tracker.projects.map(p => ({
         id: p.id,
         key: p.key,
         name: p.name,
@@ -513,15 +513,15 @@ const TOOL_EXECUTORS: Record<string, ToolExecutor> = {
     };
   },
 
-  getJiraProjectIssueTypesMetadata: (args, state) => {
+  getTrackerProjectIssueTypesMetadata: (args, state) => {
     const projectKey = String(args.projectKey || '');
     if (!projectKey) {
-      const availableProjects = state.jira.projects.map(p => p.key).join(', ');
-      throw new Error(`Missing projectKey parameter. Available projects: ${availableProjects}. Usage: getJiraProjectIssueTypesMetadata("LHR")`);
+      const availableProjects = state.tracker.projects.map(p => p.key).join(', ');
+      throw new Error(`Missing projectKey parameter. Available projects: ${availableProjects}. Usage: getTrackerProjectIssueTypesMetadata("LHR")`);
     }
-    const project = state.jira.projects.find(p => p.key === projectKey);
+    const project = state.tracker.projects.find(p => p.key === projectKey);
     if (!project) {
-      const availableProjects = state.jira.projects.map(p => p.key).join(', ');
+      const availableProjects = state.tracker.projects.map(p => p.key).join(', ');
       throw new Error(`Project "${projectKey}" not found. Available projects: ${availableProjects}`);
     }
 
@@ -534,17 +534,17 @@ const TOOL_EXECUTORS: Record<string, ToolExecutor> = {
     };
   },
 
-  getJiraIssueTypeMetaWithFields: (args, state) => {
+  getTrackerIssueTypeMetaWithFields: (args, state) => {
     const projectKey = String(args.projectKey || '');
     const issueTypeName = String(args.issueType || '');
 
     if (!projectKey) {
-      const availableProjects = state.jira.projects.map(p => p.key).join(', ');
+      const availableProjects = state.tracker.projects.map(p => p.key).join(', ');
       throw new Error(`Missing projectKey parameter. Available projects: ${availableProjects}`);
     }
-    const project = state.jira.projects.find(p => p.key === projectKey);
+    const project = state.tracker.projects.find(p => p.key === projectKey);
     if (!project) {
-      const availableProjects = state.jira.projects.map(p => p.key).join(', ');
+      const availableProjects = state.tracker.projects.map(p => p.key).join(', ');
       throw new Error(`Project "${projectKey}" not found. Available projects: ${availableProjects}`);
     }
 
@@ -569,19 +569,19 @@ const TOOL_EXECUTORS: Record<string, ToolExecutor> = {
     };
   },
 
-  searchJiraIssuesUsingJql: (args, state) => {
-    const jql = String(args.jql || '').toLowerCase();
+  searchTrackerIssuesUsingTql: (args, state) => {
+    const tql = String(args.tql || '').toLowerCase();
     const limit = Number(args.limit) || 10;
     const startAt = Number(args.startAt) || 0;
 
-    const results: JiraIssue[] = [];
+    const results: TrackerIssue[] = [];
 
-    // Basic JQL parsing
-    const projectMatch = jql.match(/project\s*=\s*["']?(\w+)["']?/);
-    const statusMatch = jql.match(/status\s*=\s*["']([^"']+)["']/);
-    const keyMatch = jql.match(/key\s*=\s*["']?([A-Z]+-\d+)["']?/);
+    // Basic TQL parsing
+    const projectMatch = tql.match(/project\s*=\s*["']?(\w+)["']?/);
+    const statusMatch = tql.match(/status\s*=\s*["']([^"']+)["']/);
+    const keyMatch = tql.match(/key\s*=\s*["']?([A-Z]+-\d+)["']?/);
 
-    for (const issue of state.jira.issues.values()) {
+    for (const issue of state.tracker.issues.values()) {
       let matches = true;
 
       if (projectMatch && issue.projectKey.toLowerCase() !== projectMatch[1].toLowerCase()) {
@@ -596,8 +596,8 @@ const TOOL_EXECUTORS: Record<string, ToolExecutor> = {
 
       // Fallback: if no specific filters, search in summary
       if (!projectMatch && !statusMatch && !keyMatch) {
-        if (!issue.summary.toLowerCase().includes(jql) &&
-            !issue.key.toLowerCase().includes(jql)) {
+        if (!issue.summary.toLowerCase().includes(tql) &&
+            !issue.key.toLowerCase().includes(tql)) {
           matches = false;
         }
       }
@@ -611,40 +611,40 @@ const TOOL_EXECUTORS: Record<string, ToolExecutor> = {
       startAt,
       maxResults: limit,
       total: results.length,
-      issues: results.slice(startAt, startAt + limit).map(i => formatJiraIssueResponse(i))
+      issues: results.slice(startAt, startAt + limit).map(i => formatTrackerIssueResponse(i))
     };
   },
 
-  getJiraIssue: (args, state) => {
+  getTrackerIssue: (args, state) => {
     const issueIdOrKey = String(args.issueIdOrKey || '');
     if (!issueIdOrKey) {
-      const availableIssues = Array.from(state.jira.issues.keys()).join(', ');
-      throw new Error(`Missing issueIdOrKey parameter. Available issues: ${availableIssues}. Usage: getJiraIssue("LHR-100")`);
+      const availableIssues = Array.from(state.tracker.issues.keys()).join(', ');
+      throw new Error(`Missing issueIdOrKey parameter. Available issues: ${availableIssues}. Usage: getTrackerIssue("LHR-100")`);
     }
-    const issue = state.jira.issues.get(issueIdOrKey) ||
-      Array.from(state.jira.issues.values()).find(i => i.id === issueIdOrKey);
+    const issue = state.tracker.issues.get(issueIdOrKey) ||
+      Array.from(state.tracker.issues.values()).find(i => i.id === issueIdOrKey);
 
     if (!issue) {
-      const availableIssues = Array.from(state.jira.issues.keys()).join(', ');
+      const availableIssues = Array.from(state.tracker.issues.keys()).join(', ');
       throw new Error(`Issue "${issueIdOrKey}" not found. Available issues: ${availableIssues}`);
     }
 
-    return formatJiraIssueResponse(issue);
+    return formatTrackerIssueResponse(issue);
   },
 
-  getTransitionsForJiraIssue: (args, state) => {
+  getTransitionsForTrackerIssue: (args, state) => {
     const issueIdOrKey = String(args.issueIdOrKey || '');
     if (!issueIdOrKey) {
-      const availableIssues = Array.from(state.jira.issues.keys()).join(', ');
+      const availableIssues = Array.from(state.tracker.issues.keys()).join(', ');
       throw new Error(`Missing issueIdOrKey parameter. Available issues: ${availableIssues}`);
     }
-    const issue = state.jira.issues.get(issueIdOrKey);
+    const issue = state.tracker.issues.get(issueIdOrKey);
     if (!issue) {
-      const availableIssues = Array.from(state.jira.issues.keys()).join(', ');
+      const availableIssues = Array.from(state.tracker.issues.keys()).join(', ');
       throw new Error(`Issue "${issueIdOrKey}" not found. Available issues: ${availableIssues}`);
     }
 
-    const transitions = state.jira.transitions.get(issue.key) || [];
+    const transitions = state.tracker.transitions.get(issue.key) || [];
     return {
       transitions: transitions.map(t => ({
         id: t.id,
@@ -656,11 +656,11 @@ const TOOL_EXECUTORS: Record<string, ToolExecutor> = {
     };
   },
 
-  editJiraIssue: (args, state) => {
+  editTrackerIssue: (args, state) => {
     const issueIdOrKey = String(args.issueIdOrKey || '');
     const fields = (args.fields || {}) as Record<string, unknown>;
 
-    const result = editJiraIssue(state, issueIdOrKey, fields);
+    const result = editTrackerIssue(state, issueIdOrKey, fields);
     if (!result.success) {
       throw new Error(result.error);
     }
@@ -668,11 +668,11 @@ const TOOL_EXECUTORS: Record<string, ToolExecutor> = {
     return { ok: true, message: `Issue ${issueIdOrKey} updated` };
   },
 
-  transitionJiraIssue: (args, state) => {
+  transitionTrackerIssue: (args, state) => {
     const issueIdOrKey = String(args.issueIdOrKey || '');
     const transitionId = String(args.transitionId || '');
 
-    const result = transitionJiraIssue(state, issueIdOrKey, transitionId);
+    const result = transitionTrackerIssue(state, issueIdOrKey, transitionId);
     if (!result.success) {
       throw new Error(result.error);
     }
@@ -680,11 +680,11 @@ const TOOL_EXECUTORS: Record<string, ToolExecutor> = {
     return { ok: true, newStatus: result.newStatus };
   },
 
-  addCommentToJiraIssue: (args, state) => {
+  addCommentToTrackerIssue: (args, state) => {
     const issueIdOrKey = String(args.issueIdOrKey || '');
     const body = String(args.body || '');
 
-    const result = addCommentToJiraIssue(state, issueIdOrKey, body);
+    const result = addCommentToTrackerIssue(state, issueIdOrKey, body);
     if (!result.success) {
       throw new Error(result.error);
     }
@@ -692,11 +692,11 @@ const TOOL_EXECUTORS: Record<string, ToolExecutor> = {
     return { id: result.commentId, created: true };
   },
 
-  addWorklogToJiraIssue: (args, state) => {
+  addWorklogToTrackerIssue: (args, state) => {
     const issueIdOrKey = String(args.issueIdOrKey || '');
     const timeSpent = String(args.timeSpent || '');
 
-    const result = addWorklogToJiraIssue(state, issueIdOrKey, timeSpent);
+    const result = addWorklogToTrackerIssue(state, issueIdOrKey, timeSpent);
     if (!result.success) {
       throw new Error(result.error);
     }
@@ -704,13 +704,13 @@ const TOOL_EXECUTORS: Record<string, ToolExecutor> = {
     return { id: result.worklogId, created: true };
   },
 
-  createJiraIssue: (args, state) => {
+  createTrackerIssue: (args, state) => {
     const projectKey = String(args.projectKey || '');
     const summary = String(args.summary || '');
     const issuetype = String(args.issuetype || 'Task');
     const description = args.description ? String(args.description) : undefined;
 
-    const result = createJiraIssue(state, projectKey, summary, issuetype, description);
+    const result = createTrackerIssue(state, projectKey, summary, issuetype, description);
     if (!result.success) {
       throw new Error(result.error);
     }
@@ -718,13 +718,13 @@ const TOOL_EXECUTORS: Record<string, ToolExecutor> = {
     return {
       id: result.issueKey?.replace(/[A-Z]+-/, 'J-'),
       key: result.issueKey,
-      self: `https://acme.atlassian.net/rest/api/3/issue/${result.issueKey}`
+      self: `https://acme.nexus.io/rest/api/3/issue/${result.issueKey}`
     };
   },
 
-  getJiraIssueRemoteIssueLinks: (args, state) => {
+  getTrackerIssueRemoteLinks: (args, state) => {
     const issueIdOrKey = String(args.issueIdOrKey || '');
-    const issue = state.jira.issues.get(issueIdOrKey);
+    const issue = state.tracker.issues.get(issueIdOrKey);
     if (!issue) {
       throw new Error(`Issue ${issueIdOrKey} not found`);
     }
@@ -738,7 +738,7 @@ const TOOL_EXECUTORS: Record<string, ToolExecutor> = {
     }));
   },
 
-  lookupJiraAccountId: (args, state) => {
+  lookupTrackerAccountId: (args, state) => {
     const query = String(args.query || '').toLowerCase();
 
     // Only return current user if query matches
@@ -755,13 +755,13 @@ const TOOL_EXECUTORS: Record<string, ToolExecutor> = {
     return [];
   },
 
-  // ============ COMPASS ============
+  // ============ CATALOG ============
 
-  getCompassComponents: (args, state) => {
+  getCatalogComponents: (args, state) => {
     const limit = Number(args.limit) || 25;
     const typeFilter = args.type ? String(args.type) : undefined;
 
-    let components = Array.from(state.compass.components.values());
+    let components = Array.from(state.catalog.components.values());
 
     if (typeFilter) {
       components = components.filter(c => c.type === typeFilter);
@@ -778,9 +778,9 @@ const TOOL_EXECUTORS: Record<string, ToolExecutor> = {
     };
   },
 
-  getCompassComponent: (args, state) => {
+  getCatalogComponent: (args, state) => {
     const componentId = String(args.componentId || '');
-    const component = state.compass.components.get(componentId);
+    const component = state.catalog.components.get(componentId);
     if (!component) {
       throw new Error(`Component ${componentId} not found`);
     }
@@ -795,12 +795,12 @@ const TOOL_EXECUTORS: Record<string, ToolExecutor> = {
     };
   },
 
-  createCompassComponent: (args, state) => {
+  createCatalogComponent: (args, state) => {
     const name = String(args.name || '');
     const type = String(args.type || 'SERVICE') as 'SERVICE' | 'LIBRARY' | 'APPLICATION' | 'OTHER';
     const description = args.description ? String(args.description) : undefined;
 
-    const result = createCompassComponent(state, name, type, description);
+    const result = createCatalogComponent(state, name, type, description);
     if (!result.success) {
       throw new Error(result.error);
     }
@@ -808,12 +808,12 @@ const TOOL_EXECUTORS: Record<string, ToolExecutor> = {
     return { id: result.componentId, created: true };
   },
 
-  createCompassComponentRelationship: (args, state) => {
+  createCatalogComponentRelationship: (args, state) => {
     const sourceId = String(args.sourceId || '');
     const targetId = String(args.targetId || '');
     const type = args.type ? String(args.type) : 'DEPENDS_ON';
 
-    const result = createCompassComponentRelationship(state, sourceId, targetId, type);
+    const result = createCatalogComponentRelationship(state, sourceId, targetId, type);
     if (!result.success) {
       throw new Error(result.error);
     }
@@ -821,24 +821,24 @@ const TOOL_EXECUTORS: Record<string, ToolExecutor> = {
     return { id: result.relationshipId, created: true };
   },
 
-  getCompassCustomFieldDefinitions: (args, state) => {
+  getCatalogCustomFieldDefinitions: (args, state) => {
     const limit = Number(args.limit) || 25;
 
     return {
-      values: state.compass.customFieldDefs.slice(0, limit).map(f => ({
+      values: state.catalog.customFieldDefs.slice(0, limit).map(f => ({
         id: f.id,
         name: f.name,
         type: f.type
       })),
-      total: state.compass.customFieldDefs.length
+      total: state.catalog.customFieldDefs.length
     };
   },
 
-  createCompassCustomFieldDefinition: (args, state) => {
+  createCatalogCustomFieldDefinition: (args, state) => {
     const name = String(args.name || '');
     const type = String(args.type || 'TEXT') as 'TEXT' | 'NUMBER' | 'BOOLEAN' | 'USER';
 
-    const result = createCompassCustomFieldDefinition(state, name, type);
+    const result = createCatalogCustomFieldDefinition(state, name, type);
     if (!result.success) {
       throw new Error(result.error);
     }
@@ -849,38 +849,38 @@ const TOOL_EXECUTORS: Record<string, ToolExecutor> = {
 
 // ============ HELPER FUNCTIONS ============
 
-function formatConfluencePageResponse(page: ConfluencePage, state: AtlassianState) {
-  const space = state.confluence.spaces.find(s => s.id === page.spaceId);
+function formatPagesDocResponse(doc: PagesDoc, state: NexusState) {
+  const space = state.pages.spaces.find(s => s.id === doc.spaceId);
   return {
-    id: page.id,
-    title: page.title,
+    id: doc.id,
+    title: doc.title,
     space: {
       id: space?.id,
       key: space?.key,
       name: space?.name
     },
     version: {
-      number: page.version,
-      when: page.updated
+      number: doc.version,
+      when: doc.updated
     },
     body: {
       storage: {
-        value: page.body,
+        value: doc.body,
         representation: 'storage'
       }
     },
     _links: {
-      webui: `https://acme.atlassian.net/wiki/spaces/${space?.key}/pages/${page.id}`,
-      self: `https://acme.atlassian.net/wiki/rest/api/content/${page.id}`
+      webui: `https://acme.nexus.io/wiki/spaces/${space?.key}/docs/${doc.id}`,
+      self: `https://acme.nexus.io/wiki/rest/api/content/${doc.id}`
     }
   };
 }
 
-function formatJiraIssueResponse(issue: JiraIssue) {
+function formatTrackerIssueResponse(issue: TrackerIssue) {
   return {
     id: issue.id,
     key: issue.key,
-    self: `https://acme.atlassian.net/rest/api/3/issue/${issue.key}`,
+    self: `https://acme.nexus.io/rest/api/3/issue/${issue.key}`,
     fields: {
       summary: issue.summary,
       description: issue.description,

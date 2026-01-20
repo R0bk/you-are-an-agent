@@ -1,7 +1,7 @@
 /**
- * Mutable State Engine for Atlassian MCP Simulation
+ * Mutable State Engine for Nexus MCP Simulation
  *
- * Tracks the complete state of Jira, Confluence, and Compass
+ * Tracks the complete state of Tracker, Pages, and Catalog
  * All mutations are logged for validation
  */
 
@@ -13,18 +13,18 @@ function generateId(prefix: string): string {
 
 // ============ TYPES ============
 
-export interface AtlassianUser {
+export interface NexusUser {
   accountId: string;
   displayName: string;
   email: string;
 }
 
-export interface AtlassianResource {
+export interface NexusResource {
   cloudId: string;
   site: string;
 }
 
-export interface JiraIssue {
+export interface TrackerIssue {
   id: string;
   key: string;
   projectKey: string;
@@ -37,21 +37,21 @@ export interface JiraIssue {
   reporter?: string;
   labels?: string[];
   customFields?: Record<string, unknown>;
-  comments: JiraComment[];
-  worklogs: JiraWorklog[];
-  remoteLinks: JiraRemoteLink[];
+  comments: TrackerComment[];
+  worklogs: TrackerWorklog[];
+  remoteLinks: TrackerRemoteLink[];
   created: string;
   updated: string;
 }
 
-export interface JiraComment {
+export interface TrackerComment {
   id: string;
   author: string;
   body: string;
   created: string;
 }
 
-export interface JiraWorklog {
+export interface TrackerWorklog {
   id: string;
   author: string;
   timeSpent: string;
@@ -59,59 +59,59 @@ export interface JiraWorklog {
   started: string;
 }
 
-export interface JiraRemoteLink {
+export interface TrackerRemoteLink {
   id: string;
   url: string;
   title: string;
 }
 
-export interface JiraTransition {
+export interface TrackerTransition {
   id: string;
   name: string;
   toStatus: string;
 }
 
-export interface JiraProject {
+export interface TrackerProject {
   id: string;
   key: string;
   name: string;
-  issueTypes: JiraIssueType[];
+  issueTypes: TrackerIssueType[];
 }
 
-export interface JiraIssueType {
+export interface TrackerIssueType {
   id: string;
   name: string;
-  fields: JiraFieldMeta[];
+  fields: TrackerFieldMeta[];
 }
 
-export interface JiraFieldMeta {
+export interface TrackerFieldMeta {
   key: string;
   name: string;
   required: boolean;
   schema: { type: string };
 }
 
-export interface ConfluenceSpace {
+export interface PagesSpace {
   id: string;
   key: string;
   name: string;
   type: 'global' | 'personal';
 }
 
-export interface ConfluencePage {
+export interface PagesDoc {
   id: string;
   spaceId: string;
   parentId?: string;
   title: string;
   body: string; // Markdown content
   version: number;
-  inlineComments: ConfluenceInlineComment[];
-  footerComments: ConfluenceFooterComment[];
+  inlineComments: PagesInlineComment[];
+  footerComments: PagesFooterComment[];
   created: string;
   updated: string;
 }
 
-export interface ConfluenceInlineComment {
+export interface PagesInlineComment {
   id: string;
   anchor: string; // e.g., "row:LHR-103"
   author: string;
@@ -119,29 +119,29 @@ export interface ConfluenceInlineComment {
   created: string;
 }
 
-export interface ConfluenceFooterComment {
+export interface PagesFooterComment {
   id: string;
   author: string;
   body: string;
   created: string;
 }
 
-export interface CompassComponent {
+export interface CatalogComponent {
   id: string;
   name: string;
   type: 'SERVICE' | 'LIBRARY' | 'APPLICATION' | 'OTHER';
   description?: string;
-  relationships: CompassRelationship[];
+  relationships: CatalogRelationship[];
   customFields: Record<string, unknown>;
 }
 
-export interface CompassRelationship {
+export interface CatalogRelationship {
   id: string;
   targetId: string;
   type: string;
 }
 
-export interface CompassCustomFieldDef {
+export interface CatalogCustomFieldDef {
   id: string;
   name: string;
   type: 'TEXT' | 'NUMBER' | 'BOOLEAN' | 'USER';
@@ -158,30 +158,30 @@ export interface ActionLog {
 // Read log for tracking what was read (not mutated)
 export interface ReadLog {
   timestamp: string;
-  resource: string; // e.g., "confluence:page:P-501", "confluence:inlineComments:P-501"
+  resource: string; // e.g., "pages:doc:P-501", "pages:inlineComments:P-501"
   details?: Record<string, unknown>;
 }
 
 // ============ STATE ============
 
-export interface AtlassianState {
-  user: AtlassianUser;
-  resources: AtlassianResource[];
+export interface NexusState {
+  user: NexusUser;
+  resources: NexusResource[];
 
-  jira: {
-    projects: JiraProject[];
-    issues: Map<string, JiraIssue>; // key -> issue
-    transitions: Map<string, JiraTransition[]>; // issueKey -> available transitions
+  tracker: {
+    projects: TrackerProject[];
+    issues: Map<string, TrackerIssue>; // key -> issue
+    transitions: Map<string, TrackerTransition[]>; // issueKey -> available transitions
   };
 
-  confluence: {
-    spaces: ConfluenceSpace[];
-    pages: Map<string, ConfluencePage>; // id -> page
+  pages: {
+    spaces: PagesSpace[];
+    docs: Map<string, PagesDoc>; // id -> doc
   };
 
-  compass: {
-    components: Map<string, CompassComponent>;
-    customFieldDefs: CompassCustomFieldDef[];
+  catalog: {
+    components: Map<string, CatalogComponent>;
+    customFieldDefs: CatalogCustomFieldDef[];
   };
 
   // Mutation log for validation
@@ -193,17 +193,17 @@ export interface AtlassianState {
 
 // ============ INITIAL STATE FACTORY ============
 
-export function createInitialState(): AtlassianState {
-  const state: AtlassianState = {
+export function createInitialState(): NexusState {
+  const state: NexusState = {
     user: {
       accountId: 'user-001',
       displayName: 'Agent User',
-      email: 'agent@acme.atlassian.net'
+      email: 'agent@acme.nexus.io'
     },
     resources: [
-      { cloudId: 'c-123', site: 'https://acme.atlassian.net' }
+      { cloudId: 'c-123', site: 'https://acme.nexus.io' }
     ],
-    jira: {
+    tracker: {
       projects: [
         {
           id: 'P-LHR',
@@ -233,14 +233,14 @@ export function createInitialState(): AtlassianState {
       issues: new Map(),
       transitions: new Map()
     },
-    confluence: {
+    pages: {
       spaces: [
         { id: 'S-SEC', key: 'SEC', name: 'Security & Compliance', type: 'global' },
         { id: 'S-GROW', key: 'GROW', name: 'Growth', type: 'global' }
       ],
-      pages: new Map()
+      docs: new Map()
     },
-    compass: {
+    catalog: {
       components: new Map(),
       customFieldDefs: []
     },
@@ -248,8 +248,8 @@ export function createInitialState(): AtlassianState {
     readLog: []
   };
 
-  // Add initial Jira issues
-  const issues: JiraIssue[] = [
+  // Add initial Tracker issues
+  const issues: TrackerIssue[] = [
     {
       id: 'J-100',
       key: 'LHR-100',
@@ -309,17 +309,17 @@ export function createInitialState(): AtlassianState {
   ];
 
   for (const issue of issues) {
-    state.jira.issues.set(issue.key, issue);
+    state.tracker.issues.set(issue.key, issue);
     // Set available transitions for each issue
-    state.jira.transitions.set(issue.key, [
+    state.tracker.transitions.set(issue.key, [
       { id: 'T-1', name: 'Start Progress', toStatus: 'In Progress' },
       { id: 'T-2', name: 'Done', toStatus: 'Done' },
       { id: 'T-3', name: 'Block', toStatus: 'Blocked' }
     ]);
   }
 
-  // Add Confluence pages
-  const pages: ConfluencePage[] = [
+  // Add Pages docs
+  const docs: PagesDoc[] = [
     {
       id: 'P-500',
       spaceId: 'S-SEC',
@@ -346,9 +346,9 @@ export function createInitialState(): AtlassianState {
       title: 'Lighthouse Retention Roadmap (LIVE)',
       body: `# Lighthouse Retention Roadmap (LIVE)
 
-## Approved changes (apply to Jira)
+## Approved changes (apply to Tracker)
 
-| Jira key | What to change | Target status |
+| Tracker key | What to change | Target status |
 |---|---|---|
 | **LHR-100** | Set **Retention window** = \`18 months\` | In Progress |
 | **LHR-101** | Summary → \`Implement auto-delete\` | In Progress |
@@ -356,7 +356,7 @@ export function createInitialState(): AtlassianState {
 | **LHR-103** | Summary → \`Update privacy language\` | In Progress |
 
 ## Notes
-- Comment on each issue with the Confluence link after updating.`,
+- Comment on each issue with the Pages link after updating.`,
       version: 3,
       inlineComments: [
         {
@@ -380,8 +380,8 @@ export function createInitialState(): AtlassianState {
     }
   ];
 
-  for (const page of pages) {
-    state.confluence.pages.set(page.id, page);
+  for (const doc of docs) {
+    state.pages.docs.set(doc.id, doc);
   }
 
   return state;
@@ -389,7 +389,7 @@ export function createInitialState(): AtlassianState {
 
 // ============ STATE MUTATIONS ============
 
-function logAction(state: AtlassianState, action: string, target: string, details: Record<string, unknown>): void {
+function logAction(state: NexusState, action: string, target: string, details: Record<string, unknown>): void {
   state.actionLog.push({
     timestamp: new Date().toISOString(),
     action,
@@ -398,15 +398,15 @@ function logAction(state: AtlassianState, action: string, target: string, detail
   });
 }
 
-// --- Jira Mutations ---
+// --- Tracker Mutations ---
 
-export function editJiraIssue(
-  state: AtlassianState,
+export function editTrackerIssue(
+  state: NexusState,
   issueIdOrKey: string,
   fields: Record<string, unknown>
 ): { success: boolean; error?: string } {
-  const issue = state.jira.issues.get(issueIdOrKey) ||
-    Array.from(state.jira.issues.values()).find(i => i.id === issueIdOrKey);
+  const issue = state.tracker.issues.get(issueIdOrKey) ||
+    Array.from(state.tracker.issues.values()).find(i => i.id === issueIdOrKey);
 
   if (!issue) {
     return { success: false, error: `Issue ${issueIdOrKey} not found` };
@@ -436,24 +436,24 @@ export function editJiraIssue(
 
   issue.updated = new Date().toISOString();
 
-  logAction(state, 'editJiraIssue', issue.key, { fields });
+  logAction(state, 'editTrackerIssue', issue.key, { fields });
 
   return { success: true };
 }
 
-export function transitionJiraIssue(
-  state: AtlassianState,
+export function transitionTrackerIssue(
+  state: NexusState,
   issueIdOrKey: string,
   transitionId: string
 ): { success: boolean; error?: string; newStatus?: string } {
-  const issue = state.jira.issues.get(issueIdOrKey) ||
-    Array.from(state.jira.issues.values()).find(i => i.id === issueIdOrKey);
+  const issue = state.tracker.issues.get(issueIdOrKey) ||
+    Array.from(state.tracker.issues.values()).find(i => i.id === issueIdOrKey);
 
   if (!issue) {
     return { success: false, error: `Issue ${issueIdOrKey} not found` };
   }
 
-  const transitions = state.jira.transitions.get(issue.key) || [];
+  const transitions = state.tracker.transitions.get(issue.key) || [];
   const transition = transitions.find(t => t.id === transitionId);
 
   if (!transition) {
@@ -464,7 +464,7 @@ export function transitionJiraIssue(
   issue.status = transition.toStatus;
   issue.updated = new Date().toISOString();
 
-  logAction(state, 'transitionJiraIssue', issue.key, {
+  logAction(state, 'transitionTrackerIssue', issue.key, {
     transitionId,
     transitionName: transition.name,
     fromStatus: oldStatus,
@@ -474,13 +474,13 @@ export function transitionJiraIssue(
   return { success: true, newStatus: transition.toStatus };
 }
 
-export function addCommentToJiraIssue(
-  state: AtlassianState,
+export function addCommentToTrackerIssue(
+  state: NexusState,
   issueIdOrKey: string,
   body: string
 ): { success: boolean; commentId?: string; error?: string } {
-  const issue = state.jira.issues.get(issueIdOrKey) ||
-    Array.from(state.jira.issues.values()).find(i => i.id === issueIdOrKey);
+  const issue = state.tracker.issues.get(issueIdOrKey) ||
+    Array.from(state.tracker.issues.values()).find(i => i.id === issueIdOrKey);
 
   if (!issue) {
     return { success: false, error: `Issue ${issueIdOrKey} not found` };
@@ -495,18 +495,18 @@ export function addCommentToJiraIssue(
   });
   issue.updated = new Date().toISOString();
 
-  logAction(state, 'addCommentToJiraIssue', issue.key, { commentId, body });
+  logAction(state, 'addCommentToTrackerIssue', issue.key, { commentId, body });
 
   return { success: true, commentId };
 }
 
-export function addWorklogToJiraIssue(
-  state: AtlassianState,
+export function addWorklogToTrackerIssue(
+  state: NexusState,
   issueIdOrKey: string,
   timeSpent: string
 ): { success: boolean; worklogId?: string; error?: string } {
-  const issue = state.jira.issues.get(issueIdOrKey) ||
-    Array.from(state.jira.issues.values()).find(i => i.id === issueIdOrKey);
+  const issue = state.tracker.issues.get(issueIdOrKey) ||
+    Array.from(state.tracker.issues.values()).find(i => i.id === issueIdOrKey);
 
   if (!issue) {
     return { success: false, error: `Issue ${issueIdOrKey} not found` };
@@ -525,7 +525,7 @@ export function addWorklogToJiraIssue(
   });
   issue.updated = new Date().toISOString();
 
-  logAction(state, 'addWorklogToJiraIssue', issue.key, { worklogId, timeSpent, seconds });
+  logAction(state, 'addWorklogToTrackerIssue', issue.key, { worklogId, timeSpent, seconds });
 
   return { success: true, worklogId };
 }
@@ -543,14 +543,14 @@ function parseTimeSpent(timeSpent: string): number {
   return seconds;
 }
 
-export function createJiraIssue(
-  state: AtlassianState,
+export function createTrackerIssue(
+  state: NexusState,
   projectKey: string,
   summary: string,
   issueType: string,
   description?: string
 ): { success: boolean; issueKey?: string; error?: string } {
-  const project = state.jira.projects.find(p => p.key === projectKey);
+  const project = state.tracker.projects.find(p => p.key === projectKey);
   if (!project) {
     return { success: false, error: `Project ${projectKey} not found` };
   }
@@ -561,7 +561,7 @@ export function createJiraIssue(
   }
 
   // Generate new issue key
-  const existingKeys = Array.from(state.jira.issues.keys())
+  const existingKeys = Array.from(state.tracker.issues.keys())
     .filter(k => k.startsWith(projectKey + '-'))
     .map(k => parseInt(k.split('-')[1]))
     .filter(n => !isNaN(n));
@@ -569,7 +569,7 @@ export function createJiraIssue(
   const issueKey = `${projectKey}-${nextNum}`;
   const issueId = `J-${nextNum}`;
 
-  const issue: JiraIssue = {
+  const issue: TrackerIssue = {
     id: issueId,
     key: issueKey,
     projectKey,
@@ -584,34 +584,34 @@ export function createJiraIssue(
     updated: new Date().toISOString()
   };
 
-  state.jira.issues.set(issueKey, issue);
-  state.jira.transitions.set(issueKey, [
+  state.tracker.issues.set(issueKey, issue);
+  state.tracker.transitions.set(issueKey, [
     { id: 'T-1', name: 'Start Progress', toStatus: 'In Progress' },
     { id: 'T-2', name: 'Done', toStatus: 'Done' }
   ]);
 
-  logAction(state, 'createJiraIssue', issueKey, { projectKey, summary, issueType });
+  logAction(state, 'createTrackerIssue', issueKey, { projectKey, summary, issueType });
 
   return { success: true, issueKey };
 }
 
-// --- Confluence Mutations ---
+// --- Pages Mutations ---
 
-export function createConfluencePage(
-  state: AtlassianState,
+export function createPagesDoc(
+  state: NexusState,
   spaceId: string,
   title: string,
   body: string,
   parentId?: string
-): { success: boolean; pageId?: string; error?: string } {
-  const space = state.confluence.spaces.find(s => s.id === spaceId || s.key === spaceId);
+): { success: boolean; docId?: string; error?: string } {
+  const space = state.pages.spaces.find(s => s.id === spaceId || s.key === spaceId);
   if (!space) {
     return { success: false, error: `Space ${spaceId} not found` };
   }
 
-  const pageId = generateId('P');
-  const page: ConfluencePage = {
-    id: pageId,
+  const docId = generateId('P');
+  const doc: PagesDoc = {
+    id: docId,
     spaceId: space.id,
     parentId,
     title,
@@ -623,103 +623,103 @@ export function createConfluencePage(
     updated: new Date().toISOString()
   };
 
-  state.confluence.pages.set(pageId, page);
+  state.pages.docs.set(docId, doc);
 
-  logAction(state, 'createConfluencePage', pageId, { spaceId, title, parentId });
+  logAction(state, 'createPagesDoc', docId, { spaceId, title, parentId });
 
-  return { success: true, pageId };
+  return { success: true, docId };
 }
 
-export function updateConfluencePage(
-  state: AtlassianState,
-  pageId: string,
+export function updatePagesDoc(
+  state: NexusState,
+  docId: string,
   updates: { title?: string; body?: string; version?: number }
 ): { success: boolean; error?: string } {
-  const page = state.confluence.pages.get(pageId);
-  if (!page) {
-    return { success: false, error: `Page ${pageId} not found` };
+  const doc = state.pages.docs.get(docId);
+  if (!doc) {
+    return { success: false, error: `Doc ${docId} not found` };
   }
 
   // Optimistic locking check
-  if (updates.version !== undefined && updates.version !== page.version) {
-    return { success: false, error: `Version conflict: expected ${page.version}, got ${updates.version}` };
+  if (updates.version !== undefined && updates.version !== doc.version) {
+    return { success: false, error: `Version conflict: expected ${doc.version}, got ${updates.version}` };
   }
 
   if (updates.title !== undefined) {
-    page.title = updates.title;
+    doc.title = updates.title;
   }
   if (updates.body !== undefined) {
-    page.body = updates.body;
+    doc.body = updates.body;
   }
 
-  page.version++;
-  page.updated = new Date().toISOString();
+  doc.version++;
+  doc.updated = new Date().toISOString();
 
-  logAction(state, 'updateConfluencePage', pageId, updates);
+  logAction(state, 'updatePagesDoc', docId, updates);
 
   return { success: true };
 }
 
-export function createConfluenceInlineComment(
-  state: AtlassianState,
-  pageId: string,
+export function createPagesInlineComment(
+  state: NexusState,
+  docId: string,
   body: string,
   anchor: string
 ): { success: boolean; commentId?: string; error?: string } {
-  const page = state.confluence.pages.get(pageId);
-  if (!page) {
-    return { success: false, error: `Page ${pageId} not found` };
+  const doc = state.pages.docs.get(docId);
+  if (!doc) {
+    return { success: false, error: `Doc ${docId} not found` };
   }
 
   const commentId = generateId('IC');
-  page.inlineComments.push({
+  doc.inlineComments.push({
     id: commentId,
     anchor,
     author: state.user.displayName,
     body,
     created: new Date().toISOString()
   });
-  page.updated = new Date().toISOString();
+  doc.updated = new Date().toISOString();
 
-  logAction(state, 'createConfluenceInlineComment', pageId, { commentId, anchor, body });
+  logAction(state, 'createPagesInlineComment', docId, { commentId, anchor, body });
 
   return { success: true, commentId };
 }
 
-export function createConfluenceFooterComment(
-  state: AtlassianState,
-  pageId: string,
+export function createPagesFooterComment(
+  state: NexusState,
+  docId: string,
   body: string
 ): { success: boolean; commentId?: string; error?: string } {
-  const page = state.confluence.pages.get(pageId);
-  if (!page) {
-    return { success: false, error: `Page ${pageId} not found` };
+  const doc = state.pages.docs.get(docId);
+  if (!doc) {
+    return { success: false, error: `Doc ${docId} not found` };
   }
 
   const commentId = generateId('FC');
-  page.footerComments.push({
+  doc.footerComments.push({
     id: commentId,
     author: state.user.displayName,
     body,
     created: new Date().toISOString()
   });
-  page.updated = new Date().toISOString();
+  doc.updated = new Date().toISOString();
 
-  logAction(state, 'createConfluenceFooterComment', pageId, { commentId, body });
+  logAction(state, 'createPagesFooterComment', docId, { commentId, body });
 
   return { success: true, commentId };
 }
 
-// --- Compass Mutations ---
+// --- Catalog Mutations ---
 
-export function createCompassComponent(
-  state: AtlassianState,
+export function createCatalogComponent(
+  state: NexusState,
   name: string,
   type: 'SERVICE' | 'LIBRARY' | 'APPLICATION' | 'OTHER',
   description?: string
 ): { success: boolean; componentId?: string; error?: string } {
   const componentId = generateId('COMP');
-  const component: CompassComponent = {
+  const component: CatalogComponent = {
     id: componentId,
     name,
     type,
@@ -728,25 +728,25 @@ export function createCompassComponent(
     customFields: {}
   };
 
-  state.compass.components.set(componentId, component);
+  state.catalog.components.set(componentId, component);
 
-  logAction(state, 'createCompassComponent', componentId, { name, type });
+  logAction(state, 'createCatalogComponent', componentId, { name, type });
 
   return { success: true, componentId };
 }
 
-export function createCompassComponentRelationship(
-  state: AtlassianState,
+export function createCatalogComponentRelationship(
+  state: NexusState,
   sourceId: string,
   targetId: string,
   relationType: string = 'DEPENDS_ON'
 ): { success: boolean; relationshipId?: string; error?: string } {
-  const source = state.compass.components.get(sourceId);
+  const source = state.catalog.components.get(sourceId);
   if (!source) {
     return { success: false, error: `Source component ${sourceId} not found` };
   }
 
-  const target = state.compass.components.get(targetId);
+  const target = state.catalog.components.get(targetId);
   if (!target) {
     return { success: false, error: `Target component ${targetId} not found` };
   }
@@ -758,71 +758,71 @@ export function createCompassComponentRelationship(
     type: relationType
   });
 
-  logAction(state, 'createCompassComponentRelationship', sourceId, { targetId, relationType });
+  logAction(state, 'createCatalogComponentRelationship', sourceId, { targetId, relationType });
 
   return { success: true, relationshipId };
 }
 
-export function createCompassCustomFieldDefinition(
-  state: AtlassianState,
+export function createCatalogCustomFieldDefinition(
+  state: NexusState,
   name: string,
   type: 'TEXT' | 'NUMBER' | 'BOOLEAN' | 'USER'
 ): { success: boolean; fieldId?: string; error?: string } {
   const fieldId = generateId('CFD');
-  state.compass.customFieldDefs.push({
+  state.catalog.customFieldDefs.push({
     id: fieldId,
     name,
     type
   });
 
-  logAction(state, 'createCompassCustomFieldDefinition', fieldId, { name, type });
+  logAction(state, 'createCatalogCustomFieldDefinition', fieldId, { name, type });
 
   return { success: true, fieldId };
 }
 
 // ============ VALIDATION HELPERS ============
 
-export function getActionLog(state: AtlassianState): ActionLog[] {
+export function getActionLog(state: NexusState): ActionLog[] {
   return [...state.actionLog];
 }
 
-export function hasAction(state: AtlassianState, action: string, target?: string): boolean {
+export function hasAction(state: NexusState, action: string, target?: string): boolean {
   return state.actionLog.some(log =>
     log.action === action && (target === undefined || log.target === target)
   );
 }
 
-export function getIssueStatus(state: AtlassianState, issueKey: string): string | undefined {
-  return state.jira.issues.get(issueKey)?.status;
+export function getIssueStatus(state: NexusState, issueKey: string): string | undefined {
+  return state.tracker.issues.get(issueKey)?.status;
 }
 
-export function getIssueComments(state: AtlassianState, issueKey: string): JiraComment[] {
-  return state.jira.issues.get(issueKey)?.comments || [];
+export function getIssueComments(state: NexusState, issueKey: string): TrackerComment[] {
+  return state.tracker.issues.get(issueKey)?.comments || [];
 }
 
-export function wasIssueTransitioned(state: AtlassianState, issueKey: string, toStatus?: string): boolean {
+export function wasIssueTransitioned(state: NexusState, issueKey: string, toStatus?: string): boolean {
   return state.actionLog.some(log =>
-    log.action === 'transitionJiraIssue' &&
+    log.action === 'transitionTrackerIssue' &&
     log.target === issueKey &&
     (toStatus === undefined || log.details.toStatus === toStatus)
   );
 }
 
-export function wasIssueEdited(state: AtlassianState, issueKey: string): boolean {
+export function wasIssueEdited(state: NexusState, issueKey: string): boolean {
   return state.actionLog.some(log =>
-    log.action === 'editJiraIssue' && log.target === issueKey
+    log.action === 'editTrackerIssue' && log.target === issueKey
   );
 }
 
-export function wasCommentAdded(state: AtlassianState, issueKey: string): boolean {
+export function wasCommentAdded(state: NexusState, issueKey: string): boolean {
   return state.actionLog.some(log =>
-    log.action === 'addCommentToJiraIssue' && log.target === issueKey
+    log.action === 'addCommentToTrackerIssue' && log.target === issueKey
   );
 }
 
 // ============ READ TRACKING ============
 
-export function logRead(state: AtlassianState, resource: string, details?: Record<string, unknown>): void {
+export function logRead(state: NexusState, resource: string, details?: Record<string, unknown>): void {
   state.readLog.push({
     timestamp: new Date().toISOString(),
     resource,
@@ -830,18 +830,18 @@ export function logRead(state: AtlassianState, resource: string, details?: Recor
   });
 }
 
-export function wasResourceRead(state: AtlassianState, resourcePattern: string): boolean {
+export function wasResourceRead(state: NexusState, resourcePattern: string): boolean {
   return state.readLog.some(log => log.resource.includes(resourcePattern));
 }
 
-export function wasInlineCommentsRead(state: AtlassianState, pageId: string): boolean {
+export function wasInlineCommentsRead(state: NexusState, docId: string): boolean {
   return state.readLog.some(log =>
-    log.resource === `confluence:inlineComments:${pageId}`
+    log.resource === `pages:inlineComments:${docId}`
   );
 }
 
-export function wasPageRead(state: AtlassianState, pageId: string): boolean {
+export function wasDocRead(state: NexusState, docId: string): boolean {
   return state.readLog.some(log =>
-    log.resource === `confluence:page:${pageId}`
+    log.resource === `pages:doc:${docId}`
   );
 }

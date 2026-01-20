@@ -1,6 +1,6 @@
 /**
  * Smart formatter for tool output that contains JSON with embedded markdown.
- * Makes Confluence pages, Jira issues, and other structured data more readable.
+ * Makes Pages docs, Tracker issues, and other structured data more readable.
  */
 
 export interface FormattedSection {
@@ -30,20 +30,20 @@ export function formatToolOutput(content: string): FormattedSection[] {
   }
 
   // Detect response type and format accordingly
-  if (isConfluencePage(parsed)) {
-    return formatConfluencePage(parsed);
+  if (isPagesDoc(parsed)) {
+    return formatPagesDoc(parsed);
   }
 
-  if (isConfluenceComments(parsed)) {
-    return formatConfluenceComments(parsed);
+  if (isPagesComments(parsed)) {
+    return formatPagesComments(parsed);
   }
 
-  if (isJiraIssue(parsed)) {
-    return formatJiraIssue(parsed);
+  if (isTrackerIssue(parsed)) {
+    return formatTrackerIssue(parsed);
   }
 
-  if (isJiraSearchResults(parsed)) {
-    return formatJiraSearchResults(parsed);
+  if (isTrackerSearchResults(parsed)) {
+    return formatTrackerSearchResults(parsed);
   }
 
   if (isSearchResults(parsed)) {
@@ -60,7 +60,7 @@ export function formatToolOutput(content: string): FormattedSection[] {
 
 // ============ TYPE GUARDS ============
 
-interface ConfluencePage {
+interface PagesDoc {
   id: string;
   title: string;
   body?: { storage?: { value?: string } };
@@ -69,17 +69,17 @@ interface ConfluencePage {
   _links?: { webui?: string };
 }
 
-function isConfluencePage(obj: unknown): obj is ConfluencePage {
+function isPagesDoc(obj: unknown): obj is PagesDoc {
   return (
     typeof obj === 'object' &&
     obj !== null &&
     'title' in obj &&
     'body' in obj &&
-    typeof (obj as ConfluencePage).body?.storage?.value === 'string'
+    typeof (obj as PagesDoc).body?.storage?.value === 'string'
   );
 }
 
-interface ConfluenceComments {
+interface PagesComments {
   results: Array<{
     id: string;
     anchor?: string;
@@ -90,18 +90,18 @@ interface ConfluenceComments {
   size: number;
 }
 
-function isConfluenceComments(obj: unknown): obj is ConfluenceComments {
+function isPagesComments(obj: unknown): obj is PagesComments {
   return (
     typeof obj === 'object' &&
     obj !== null &&
     'results' in obj &&
-    Array.isArray((obj as ConfluenceComments).results) &&
-    (obj as ConfluenceComments).results.length > 0 &&
-    'body' in (obj as ConfluenceComments).results[0]
+    Array.isArray((obj as PagesComments).results) &&
+    (obj as PagesComments).results.length > 0 &&
+    'body' in (obj as PagesComments).results[0]
   );
 }
 
-interface JiraIssue {
+interface TrackerIssue {
   key: string;
   fields: {
     summary?: string;
@@ -112,28 +112,28 @@ interface JiraIssue {
   };
 }
 
-function isJiraIssue(obj: unknown): obj is JiraIssue {
+function isTrackerIssue(obj: unknown): obj is TrackerIssue {
   return (
     typeof obj === 'object' &&
     obj !== null &&
     'key' in obj &&
     'fields' in obj &&
-    typeof (obj as JiraIssue).key === 'string' &&
-    (obj as JiraIssue).key.match(/^[A-Z]+-\d+$/) !== null
+    typeof (obj as TrackerIssue).key === 'string' &&
+    (obj as TrackerIssue).key.match(/^[A-Z]+-\d+$/) !== null
   );
 }
 
-interface JiraSearchResults {
-  issues: JiraIssue[];
+interface TrackerSearchResults {
+  issues: TrackerIssue[];
   total: number;
 }
 
-function isJiraSearchResults(obj: unknown): obj is JiraSearchResults {
+function isTrackerSearchResults(obj: unknown): obj is TrackerSearchResults {
   return (
     typeof obj === 'object' &&
     obj !== null &&
     'issues' in obj &&
-    Array.isArray((obj as JiraSearchResults).issues) &&
+    Array.isArray((obj as TrackerSearchResults).issues) &&
     'total' in obj
   );
 }
@@ -179,22 +179,22 @@ function isSimpleSuccess(obj: unknown): obj is SimpleSuccess {
 
 // ============ FORMATTERS ============
 
-function formatConfluencePage(page: ConfluencePage): FormattedSection[] {
+function formatPagesDoc(doc: PagesDoc): FormattedSection[] {
   const sections: FormattedSection[] = [];
 
-  // Header with page info
-  const spaceInfo = page.space?.key ? ` [${page.space.key}]` : '';
-  const versionInfo = page.version?.number ? ` v${page.version.number}` : '';
+  // Header with doc info
+  const spaceInfo = doc.space?.key ? ` [${doc.space.key}]` : '';
+  const versionInfo = doc.version?.number ? ` v${doc.version.number}` : '';
   sections.push({
     type: 'header',
-    content: `${page.title}`,
-    label: `Confluence Page${spaceInfo}${versionInfo}`
+    content: `${doc.title}`,
+    label: `Pages Doc${spaceInfo}${versionInfo}`
   });
 
   // Metadata line
   const metaParts: string[] = [];
-  if (page.id) metaParts.push(`ID: ${page.id}`);
-  if (page._links?.webui) metaParts.push(`URL: ${page._links.webui}`);
+  if (doc.id) metaParts.push(`ID: ${doc.id}`);
+  if (doc._links?.webui) metaParts.push(`URL: ${doc._links.webui}`);
   if (metaParts.length > 0) {
     sections.push({ type: 'metadata', content: metaParts.join(' | ') });
   }
@@ -202,20 +202,20 @@ function formatConfluencePage(page: ConfluencePage): FormattedSection[] {
   sections.push({ type: 'divider', content: '' });
 
   // Main content - markdown!
-  if (page.body?.storage?.value) {
-    sections.push({ type: 'markdown', content: page.body.storage.value });
+  if (doc.body?.storage?.value) {
+    sections.push({ type: 'markdown', content: doc.body.storage.value });
   }
 
   return sections;
 }
 
-function formatConfluenceComments(data: ConfluenceComments): FormattedSection[] {
+function formatPagesComments(data: PagesComments): FormattedSection[] {
   const sections: FormattedSection[] = [];
 
   sections.push({
     type: 'header',
     content: `${data.results.length} Inline Comment${data.results.length !== 1 ? 's' : ''}`,
-    label: 'Confluence Comments'
+    label: 'Pages Comments'
   });
 
   sections.push({ type: 'divider', content: '' });
@@ -241,7 +241,7 @@ function formatConfluenceComments(data: ConfluenceComments): FormattedSection[] 
   return sections;
 }
 
-function formatJiraIssue(issue: JiraIssue): FormattedSection[] {
+function formatTrackerIssue(issue: TrackerIssue): FormattedSection[] {
   const sections: FormattedSection[] = [];
 
   const status = issue.fields.status?.name || 'Unknown';
@@ -250,7 +250,7 @@ function formatJiraIssue(issue: JiraIssue): FormattedSection[] {
   sections.push({
     type: 'header',
     content: `${issue.key}: ${issue.fields.summary || 'No summary'}`,
-    label: `Jira ${type}`
+    label: `Tracker ${type}`
   });
 
   // Status and other metadata
@@ -269,13 +269,13 @@ function formatJiraIssue(issue: JiraIssue): FormattedSection[] {
   return sections;
 }
 
-function formatJiraSearchResults(data: JiraSearchResults): FormattedSection[] {
+function formatTrackerSearchResults(data: TrackerSearchResults): FormattedSection[] {
   const sections: FormattedSection[] = [];
 
   sections.push({
     type: 'header',
     content: `${data.total} Issue${data.total !== 1 ? 's' : ''} Found`,
-    label: 'Jira Search'
+    label: 'Tracker Search'
   });
 
   sections.push({ type: 'divider', content: '' });

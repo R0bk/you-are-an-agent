@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { executeTool, ALL_TOOL_NAMES } from './tools';
-import { createInitialState, AtlassianState } from './state';
+import { createInitialState, NexusState } from './state';
 import { ParsedToolCall } from './parser';
 
 describe('Tool Executor', () => {
-  let state: AtlassianState;
+  let state: NexusState;
 
   beforeEach(() => {
     state = createInitialState();
@@ -37,11 +37,11 @@ describe('Tool Executor', () => {
     });
   });
 
-  // ============ ROVO / SHARED ============
+  // ============ CORE / SHARED ============
 
-  describe('atlassianUserInfo', () => {
+  describe('nexusUserInfo', () => {
     it('returns user info', () => {
-      const result = executeTool(makeToolCall('atlassianUserInfo'), state);
+      const result = executeTool(makeToolCall('nexusUserInfo'), state);
       expect(result.success).toBe(true);
       const output = JSON.parse(result.output);
       expect(output.accountId).toBe('user-001');
@@ -49,9 +49,9 @@ describe('Tool Executor', () => {
     });
   });
 
-  describe('getAccessibleAtlassianResources', () => {
+  describe('getAccessibleNexusResources', () => {
     it('returns accessible resources', () => {
-      const result = executeTool(makeToolCall('getAccessibleAtlassianResources'), state);
+      const result = executeTool(makeToolCall('getAccessibleNexusResources'), state);
       expect(result.success).toBe(true);
       const output = JSON.parse(result.output);
       expect(output.resources).toHaveLength(1);
@@ -65,14 +65,14 @@ describe('Tool Executor', () => {
       expect(result.success).toBe(true);
       const output = JSON.parse(result.output);
       expect(output.results.length).toBeGreaterThan(0);
-      expect(output.results[0].type).toBe('confluence:page');
+      expect(output.results[0].type).toBe('pages:doc');
     });
 
     it('finds Jira issues by key', () => {
       const result = executeTool(makeToolCall('search', { query: 'LHR-100' }), state);
       expect(result.success).toBe(true);
       const output = JSON.parse(result.output);
-      expect(output.results.some((r: any) => r.type === 'jira:issue')).toBe(true);
+      expect(output.results.some((r: any) => r.type === 'tracker:issue')).toBe(true);
     });
 
     it('respects limit parameter', () => {
@@ -83,9 +83,9 @@ describe('Tool Executor', () => {
   });
 
   describe('fetch', () => {
-    it('fetches Confluence page by ARI', () => {
+    it('fetches Pages doc by ARI', () => {
       const result = executeTool(makeToolCall('fetch', {
-        ari: 'ari:cloud:confluence:c-123:page/P-501'
+        ari: 'ari:cloud:pages:c-123:doc/P-501'
       }), state);
       expect(result.success).toBe(true);
       const output = JSON.parse(result.output);
@@ -99,49 +99,49 @@ describe('Tool Executor', () => {
     });
   });
 
-  // ============ CONFLUENCE ============
+  // ============ PAGES ============
 
-  describe('getConfluenceSpaces', () => {
+  describe('getPagesSpaces', () => {
     it('returns all spaces', () => {
-      const result = executeTool(makeToolCall('getConfluenceSpaces'), state);
+      const result = executeTool(makeToolCall('getPagesSpaces'), state);
       expect(result.success).toBe(true);
       const output = JSON.parse(result.output);
       expect(output.results).toHaveLength(2);
     });
   });
 
-  describe('getPagesInConfluenceSpace', () => {
-    it('returns pages in a space', () => {
-      const result = executeTool(makeToolCall('getPagesInConfluenceSpace', { spaceId: 'S-SEC' }), state);
+  describe('getDocsInPagesSpace', () => {
+    it('returns docs in a space', () => {
+      const result = executeTool(makeToolCall('getDocsInPagesSpace', { spaceId: 'S-SEC' }), state);
       expect(result.success).toBe(true);
       const output = JSON.parse(result.output);
       expect(output.results.length).toBeGreaterThan(0);
     });
 
     it('fails for non-existent space', () => {
-      const result = executeTool(makeToolCall('getPagesInConfluenceSpace', { spaceId: 'FAKE' }), state);
+      const result = executeTool(makeToolCall('getDocsInPagesSpace', { spaceId: 'FAKE' }), state);
       expect(result.success).toBe(false);
     });
   });
 
-  describe('getConfluencePage', () => {
-    it('returns page content', () => {
-      const result = executeTool(makeToolCall('getConfluencePage', { pageId: 'P-501' }), state);
+  describe('getPagesDoc', () => {
+    it('returns doc content', () => {
+      const result = executeTool(makeToolCall('getPagesDoc', { docId: 'P-501' }), state);
       expect(result.success).toBe(true);
       const output = JSON.parse(result.output);
       expect(output.title).toBe('Lighthouse Retention Roadmap (LIVE)');
       expect(output.body.storage.value).toContain('LHR-100');
     });
 
-    it('fails for non-existent page', () => {
-      const result = executeTool(makeToolCall('getConfluencePage', { pageId: 'P-999' }), state);
+    it('fails for non-existent doc', () => {
+      const result = executeTool(makeToolCall('getPagesDoc', { docId: 'P-999' }), state);
       expect(result.success).toBe(false);
     });
   });
 
-  describe('getConfluencePageInlineComments', () => {
+  describe('getPagesDocInlineComments', () => {
     it('returns inline comments including the critical Legal comment', () => {
-      const result = executeTool(makeToolCall('getConfluencePageInlineComments', { pageId: 'P-501' }), state);
+      const result = executeTool(makeToolCall('getPagesDocInlineComments', { docId: 'P-501' }), state);
       expect(result.success).toBe(true);
       const output = JSON.parse(result.output);
       expect(output.results).toHaveLength(1);
@@ -150,25 +150,25 @@ describe('Tool Executor', () => {
       expect(output.results[0].body.storage.value).toContain('LHR-103');
     });
 
-    it('returns empty for page without inline comments', () => {
-      const result = executeTool(makeToolCall('getConfluencePageInlineComments', { pageId: 'P-500' }), state);
+    it('returns empty for doc without inline comments', () => {
+      const result = executeTool(makeToolCall('getPagesDocInlineComments', { docId: 'P-500' }), state);
       const output = JSON.parse(result.output);
       expect(output.results).toHaveLength(0);
     });
   });
 
-  describe('getConfluencePageFooterComments', () => {
+  describe('getPagesDocFooterComments', () => {
     it('returns footer comments', () => {
-      const result = executeTool(makeToolCall('getConfluencePageFooterComments', { pageId: 'P-501' }), state);
+      const result = executeTool(makeToolCall('getPagesDocFooterComments', { docId: 'P-501' }), state);
       expect(result.success).toBe(true);
       const output = JSON.parse(result.output);
       expect(output.results.length).toBeGreaterThan(0);
     });
   });
 
-  describe('createConfluencePage', () => {
-    it('creates a new page', () => {
-      const result = executeTool(makeToolCall('createConfluencePage', {
+  describe('createPagesDoc', () => {
+    it('creates a new doc', () => {
+      const result = executeTool(makeToolCall('createPagesDoc', {
         spaceId: 'S-SEC',
         title: 'Test Page',
         body: '# Test Content'
@@ -180,10 +180,10 @@ describe('Tool Executor', () => {
     });
   });
 
-  describe('updateConfluencePage', () => {
-    it('updates a page', () => {
-      const result = executeTool(makeToolCall('updateConfluencePage', {
-        pageId: 'P-500',
+  describe('updatePagesDoc', () => {
+    it('updates a doc', () => {
+      const result = executeTool(makeToolCall('updatePagesDoc', {
+        docId: 'P-500',
         title: 'Updated Title'
       }), state);
       expect(result.success).toBe(true);
@@ -192,10 +192,10 @@ describe('Tool Executor', () => {
     });
   });
 
-  describe('searchConfluenceUsingCql', () => {
+  describe('searchPagesUsingNql', () => {
     it('searches by title', () => {
-      const result = executeTool(makeToolCall('searchConfluenceUsingCql', {
-        cql: "title ~ 'Lighthouse'"
+      const result = executeTool(makeToolCall('searchPagesUsingNql', {
+        nql: "title ~ 'Lighthouse'"
       }), state);
       expect(result.success).toBe(true);
       const output = JSON.parse(result.output);
@@ -203,19 +203,19 @@ describe('Tool Executor', () => {
     });
 
     it('searches by space', () => {
-      const result = executeTool(makeToolCall('searchConfluenceUsingCql', {
-        cql: "space = 'SEC'"
+      const result = executeTool(makeToolCall('searchPagesUsingNql', {
+        nql: "space = 'SEC'"
       }), state);
       const output = JSON.parse(result.output);
       expect(output.results.length).toBe(2);
     });
   });
 
-  // ============ JIRA ============
+  // ============ TRACKER ============
 
-  describe('getVisibleJiraProjects', () => {
+  describe('getVisibleTrackerProjects', () => {
     it('returns projects', () => {
-      const result = executeTool(makeToolCall('getVisibleJiraProjects'), state);
+      const result = executeTool(makeToolCall('getVisibleTrackerProjects'), state);
       expect(result.success).toBe(true);
       const output = JSON.parse(result.output);
       expect(output.values).toHaveLength(1);
@@ -223,18 +223,18 @@ describe('Tool Executor', () => {
     });
   });
 
-  describe('getJiraProjectIssueTypesMetadata', () => {
+  describe('getTrackerProjectIssueTypesMetadata', () => {
     it('returns issue types for project', () => {
-      const result = executeTool(makeToolCall('getJiraProjectIssueTypesMetadata', { projectKey: 'LHR' }), state);
+      const result = executeTool(makeToolCall('getTrackerProjectIssueTypesMetadata', { projectKey: 'LHR' }), state);
       expect(result.success).toBe(true);
       const output = JSON.parse(result.output);
       expect(output.issueTypes.length).toBeGreaterThan(0);
     });
   });
 
-  describe('getJiraIssueTypeMetaWithFields', () => {
+  describe('getTrackerIssueTypeMetaWithFields', () => {
     it('returns field metadata', () => {
-      const result = executeTool(makeToolCall('getJiraIssueTypeMetaWithFields', {
+      const result = executeTool(makeToolCall('getTrackerIssueTypeMetaWithFields', {
         projectKey: 'LHR',
         issueType: 'Task'
       }), state);
@@ -244,24 +244,24 @@ describe('Tool Executor', () => {
     });
   });
 
-  describe('searchJiraIssuesUsingJql', () => {
+  describe('searchTrackerIssuesUsingTql', () => {
     it('searches by project', () => {
-      const result = executeTool(makeToolCall('searchJiraIssuesUsingJql', { jql: 'project = LHR' }), state);
+      const result = executeTool(makeToolCall('searchTrackerIssuesUsingTql', { tql: 'project = LHR' }), state);
       expect(result.success).toBe(true);
       const output = JSON.parse(result.output);
       expect(output.issues).toHaveLength(4);
     });
 
     it('searches by status', () => {
-      const result = executeTool(makeToolCall('searchJiraIssuesUsingJql', { jql: "status = 'To Do'" }), state);
+      const result = executeTool(makeToolCall('searchTrackerIssuesUsingTql', { tql: "status = 'To Do'" }), state);
       const output = JSON.parse(result.output);
       expect(output.issues.length).toBe(3);
     });
   });
 
-  describe('getJiraIssue', () => {
+  describe('getTrackerIssue', () => {
     it('returns issue details', () => {
-      const result = executeTool(makeToolCall('getJiraIssue', { issueIdOrKey: 'LHR-100' }), state);
+      const result = executeTool(makeToolCall('getTrackerIssue', { issueIdOrKey: 'LHR-100' }), state);
       expect(result.success).toBe(true);
       const output = JSON.parse(result.output);
       expect(output.key).toBe('LHR-100');
@@ -269,14 +269,14 @@ describe('Tool Executor', () => {
     });
 
     it('fails for non-existent issue', () => {
-      const result = executeTool(makeToolCall('getJiraIssue', { issueIdOrKey: 'FAKE-999' }), state);
+      const result = executeTool(makeToolCall('getTrackerIssue', { issueIdOrKey: 'FAKE-999' }), state);
       expect(result.success).toBe(false);
     });
   });
 
-  describe('getTransitionsForJiraIssue', () => {
+  describe('getTransitionsForTrackerIssue', () => {
     it('returns available transitions', () => {
-      const result = executeTool(makeToolCall('getTransitionsForJiraIssue', { issueIdOrKey: 'LHR-100' }), state);
+      const result = executeTool(makeToolCall('getTransitionsForTrackerIssue', { issueIdOrKey: 'LHR-100' }), state);
       expect(result.success).toBe(true);
       const output = JSON.parse(result.output);
       expect(output.transitions.length).toBeGreaterThan(0);
@@ -284,24 +284,24 @@ describe('Tool Executor', () => {
     });
   });
 
-  describe('editJiraIssue', () => {
+  describe('editTrackerIssue', () => {
     it('updates issue fields', () => {
-      const result = executeTool(makeToolCall('editJiraIssue', {
+      const result = executeTool(makeToolCall('editTrackerIssue', {
         issueIdOrKey: 'LHR-100',
         fields: { summary: 'Updated Summary' }
       }), state);
       expect(result.success).toBe(true);
 
       // Verify the change
-      const getResult = executeTool(makeToolCall('getJiraIssue', { issueIdOrKey: 'LHR-100' }), state);
+      const getResult = executeTool(makeToolCall('getTrackerIssue', { issueIdOrKey: 'LHR-100' }), state);
       const output = JSON.parse(getResult.output);
       expect(output.fields.summary).toBe('Updated Summary');
     });
   });
 
-  describe('transitionJiraIssue', () => {
+  describe('transitionTrackerIssue', () => {
     it('changes issue status', () => {
-      const result = executeTool(makeToolCall('transitionJiraIssue', {
+      const result = executeTool(makeToolCall('transitionTrackerIssue', {
         issueIdOrKey: 'LHR-100',
         transitionId: 'T-1'
       }), state);
@@ -311,9 +311,9 @@ describe('Tool Executor', () => {
     });
   });
 
-  describe('addCommentToJiraIssue', () => {
+  describe('addCommentToTrackerIssue', () => {
     it('adds a comment', () => {
-      const result = executeTool(makeToolCall('addCommentToJiraIssue', {
+      const result = executeTool(makeToolCall('addCommentToTrackerIssue', {
         issueIdOrKey: 'LHR-100',
         body: 'Test comment'
       }), state);
@@ -323,9 +323,9 @@ describe('Tool Executor', () => {
     });
   });
 
-  describe('addWorklogToJiraIssue', () => {
+  describe('addWorklogToTrackerIssue', () => {
     it('adds a worklog', () => {
-      const result = executeTool(makeToolCall('addWorklogToJiraIssue', {
+      const result = executeTool(makeToolCall('addWorklogToTrackerIssue', {
         issueIdOrKey: 'LHR-100',
         timeSpent: '2h'
       }), state);
@@ -333,9 +333,9 @@ describe('Tool Executor', () => {
     });
   });
 
-  describe('createJiraIssue', () => {
+  describe('createTrackerIssue', () => {
     it('creates a new issue', () => {
-      const result = executeTool(makeToolCall('createJiraIssue', {
+      const result = executeTool(makeToolCall('createTrackerIssue', {
         projectKey: 'LHR',
         summary: 'New Issue',
         issuetype: 'Task'
@@ -346,9 +346,9 @@ describe('Tool Executor', () => {
     });
   });
 
-  describe('lookupJiraAccountId', () => {
+  describe('lookupTrackerAccountId', () => {
     it('finds user by name', () => {
-      const result = executeTool(makeToolCall('lookupJiraAccountId', { query: 'Agent' }), state);
+      const result = executeTool(makeToolCall('lookupTrackerAccountId', { query: 'Agent' }), state);
       expect(result.success).toBe(true);
       const output = JSON.parse(result.output);
       expect(output).toHaveLength(1);
@@ -356,17 +356,17 @@ describe('Tool Executor', () => {
     });
 
     it('returns empty for no match', () => {
-      const result = executeTool(makeToolCall('lookupJiraAccountId', { query: 'nobody' }), state);
+      const result = executeTool(makeToolCall('lookupTrackerAccountId', { query: 'nobody' }), state);
       const output = JSON.parse(result.output);
       expect(output).toHaveLength(0);
     });
   });
 
-  // ============ COMPASS ============
+  // ============ CATALOG ============
 
-  describe('createCompassComponent', () => {
+  describe('createCatalogComponent', () => {
     it('creates a component', () => {
-      const result = executeTool(makeToolCall('createCompassComponent', {
+      const result = executeTool(makeToolCall('createCatalogComponent', {
         name: 'Auth Service',
         type: 'SERVICE'
       }), state);
@@ -376,38 +376,38 @@ describe('Tool Executor', () => {
     });
   });
 
-  describe('getCompassComponents', () => {
+  describe('getCatalogComponents', () => {
     it('returns components', () => {
       // Create some components first
-      executeTool(makeToolCall('createCompassComponent', { name: 'Service A', type: 'SERVICE' }), state);
-      executeTool(makeToolCall('createCompassComponent', { name: 'Library B', type: 'LIBRARY' }), state);
+      executeTool(makeToolCall('createCatalogComponent', { name: 'Service A', type: 'SERVICE' }), state);
+      executeTool(makeToolCall('createCatalogComponent', { name: 'Library B', type: 'LIBRARY' }), state);
 
-      const result = executeTool(makeToolCall('getCompassComponents'), state);
+      const result = executeTool(makeToolCall('getCatalogComponents'), state);
       expect(result.success).toBe(true);
       const output = JSON.parse(result.output);
       expect(output.values).toHaveLength(2);
     });
 
     it('filters by type', () => {
-      executeTool(makeToolCall('createCompassComponent', { name: 'Service A', type: 'SERVICE' }), state);
-      executeTool(makeToolCall('createCompassComponent', { name: 'Library B', type: 'LIBRARY' }), state);
+      executeTool(makeToolCall('createCatalogComponent', { name: 'Service A', type: 'SERVICE' }), state);
+      executeTool(makeToolCall('createCatalogComponent', { name: 'Library B', type: 'LIBRARY' }), state);
 
-      const result = executeTool(makeToolCall('getCompassComponents', { type: 'SERVICE' }), state);
+      const result = executeTool(makeToolCall('getCatalogComponents', { type: 'SERVICE' }), state);
       const output = JSON.parse(result.output);
       expect(output.values).toHaveLength(1);
       expect(output.values[0].type).toBe('SERVICE');
     });
   });
 
-  describe('createCompassComponentRelationship', () => {
+  describe('createCatalogComponentRelationship', () => {
     it('creates a relationship', () => {
-      const comp1 = executeTool(makeToolCall('createCompassComponent', { name: 'A', type: 'SERVICE' }), state);
-      const comp2 = executeTool(makeToolCall('createCompassComponent', { name: 'B', type: 'SERVICE' }), state);
+      const comp1 = executeTool(makeToolCall('createCatalogComponent', { name: 'A', type: 'SERVICE' }), state);
+      const comp2 = executeTool(makeToolCall('createCatalogComponent', { name: 'B', type: 'SERVICE' }), state);
 
       const id1 = JSON.parse(comp1.output).id;
       const id2 = JSON.parse(comp2.output).id;
 
-      const result = executeTool(makeToolCall('createCompassComponentRelationship', {
+      const result = executeTool(makeToolCall('createCatalogComponentRelationship', {
         sourceId: id1,
         targetId: id2,
         type: 'DEPENDS_ON'
@@ -416,9 +416,9 @@ describe('Tool Executor', () => {
     });
   });
 
-  describe('createCompassCustomFieldDefinition', () => {
+  describe('createCatalogCustomFieldDefinition', () => {
     it('creates a custom field', () => {
-      const result = executeTool(makeToolCall('createCompassCustomFieldDefinition', {
+      const result = executeTool(makeToolCall('createCatalogCustomFieldDefinition', {
         name: 'Team',
         type: 'TEXT'
       }), state);
@@ -426,11 +426,11 @@ describe('Tool Executor', () => {
     });
   });
 
-  describe('getCompassCustomFieldDefinitions', () => {
+  describe('getCatalogCustomFieldDefinitions', () => {
     it('returns custom field definitions', () => {
-      executeTool(makeToolCall('createCompassCustomFieldDefinition', { name: 'Team', type: 'TEXT' }), state);
+      executeTool(makeToolCall('createCatalogCustomFieldDefinition', { name: 'Team', type: 'TEXT' }), state);
 
-      const result = executeTool(makeToolCall('getCompassCustomFieldDefinitions'), state);
+      const result = executeTool(makeToolCall('getCatalogCustomFieldDefinitions'), state);
       expect(result.success).toBe(true);
       const output = JSON.parse(result.output);
       expect(output.values).toHaveLength(1);
@@ -447,71 +447,71 @@ describe('Tool Executor', () => {
       const searchOutput = JSON.parse(searchResult.output);
       expect(searchOutput.results.some((r: any) => r.id === 'P-501')).toBe(true);
 
-      // Step 2: Get page content
-      const pageResult = executeTool(makeToolCall('getConfluencePage', { pageId: 'P-501' }), state);
+      // Step 2: Get doc content
+      const pageResult = executeTool(makeToolCall('getPagesDoc', { docId: 'P-501' }), state);
       expect(pageResult.success).toBe(true);
       const pageOutput = JSON.parse(pageResult.output);
       expect(pageOutput.body.storage.value).toContain('LHR-100');
 
       // Step 3: Get inline comments (THE TRAP!)
-      const commentsResult = executeTool(makeToolCall('getConfluencePageInlineComments', { pageId: 'P-501' }), state);
+      const commentsResult = executeTool(makeToolCall('getPagesDocInlineComments', { docId: 'P-501' }), state);
       const commentsOutput = JSON.parse(commentsResult.output);
       expect(commentsOutput.results[0].body.storage.value).toContain('NOT');
       expect(commentsOutput.results[0].body.storage.value).toContain('LHR-103');
 
       // Step 4: Get transitions for issues
-      const transitionsResult = executeTool(makeToolCall('getTransitionsForJiraIssue', { issueIdOrKey: 'LHR-100' }), state);
+      const transitionsResult = executeTool(makeToolCall('getTransitionsForTrackerIssue', { issueIdOrKey: 'LHR-100' }), state);
       const transitionsOutput = JSON.parse(transitionsResult.output);
       const startProgressTransition = transitionsOutput.transitions.find((t: any) => t.name === 'Start Progress');
 
       // Step 5: Update issues (respecting the Legal comment!)
-      executeTool(makeToolCall('editJiraIssue', {
+      executeTool(makeToolCall('editTrackerIssue', {
         issueIdOrKey: 'LHR-100',
         fields: { customfield_10001: '18 months' }
       }), state);
-      executeTool(makeToolCall('editJiraIssue', {
+      executeTool(makeToolCall('editTrackerIssue', {
         issueIdOrKey: 'LHR-101',
         fields: { summary: 'Implement auto-delete' }
       }), state);
-      executeTool(makeToolCall('editJiraIssue', {
+      executeTool(makeToolCall('editTrackerIssue', {
         issueIdOrKey: 'LHR-102',
         fields: { summary: 'Role-based access' }
       }), state);
       // DO NOT edit LHR-103 summary per roadmap, but DO NOT transition it!
 
       // Step 6: Transition LHR-100, 101, 102 (but NOT 103!)
-      executeTool(makeToolCall('transitionJiraIssue', {
+      executeTool(makeToolCall('transitionTrackerIssue', {
         issueIdOrKey: 'LHR-100',
         transitionId: startProgressTransition.id
       }), state);
-      executeTool(makeToolCall('transitionJiraIssue', {
+      executeTool(makeToolCall('transitionTrackerIssue', {
         issueIdOrKey: 'LHR-101',
         transitionId: startProgressTransition.id
       }), state);
-      executeTool(makeToolCall('transitionJiraIssue', {
+      executeTool(makeToolCall('transitionTrackerIssue', {
         issueIdOrKey: 'LHR-102',
         transitionId: startProgressTransition.id
       }), state);
 
-      // Step 7: Add comments with Confluence link
-      executeTool(makeToolCall('addCommentToJiraIssue', {
+      // Step 7: Add comments with Pages link
+      executeTool(makeToolCall('addCommentToTrackerIssue', {
         issueIdOrKey: 'LHR-100',
-        body: 'Updated per roadmap: https://acme.atlassian.net/wiki/spaces/SEC/pages/P-501'
+        body: 'Updated per roadmap: https://acme.nexus.io/wiki/spaces/SEC/pages/P-501'
       }), state);
-      executeTool(makeToolCall('addCommentToJiraIssue', {
+      executeTool(makeToolCall('addCommentToTrackerIssue', {
         issueIdOrKey: 'LHR-101',
-        body: 'Updated per roadmap: https://acme.atlassian.net/wiki/spaces/SEC/pages/P-501'
+        body: 'Updated per roadmap: https://acme.nexus.io/wiki/spaces/SEC/pages/P-501'
       }), state);
-      executeTool(makeToolCall('addCommentToJiraIssue', {
+      executeTool(makeToolCall('addCommentToTrackerIssue', {
         issueIdOrKey: 'LHR-102',
-        body: 'Updated per roadmap: https://acme.atlassian.net/wiki/spaces/SEC/pages/P-501'
+        body: 'Updated per roadmap: https://acme.nexus.io/wiki/spaces/SEC/pages/P-501'
       }), state);
 
       // Verify final state
-      const lhr100 = JSON.parse(executeTool(makeToolCall('getJiraIssue', { issueIdOrKey: 'LHR-100' }), state).output);
-      const lhr101 = JSON.parse(executeTool(makeToolCall('getJiraIssue', { issueIdOrKey: 'LHR-101' }), state).output);
-      const lhr102 = JSON.parse(executeTool(makeToolCall('getJiraIssue', { issueIdOrKey: 'LHR-102' }), state).output);
-      const lhr103 = JSON.parse(executeTool(makeToolCall('getJiraIssue', { issueIdOrKey: 'LHR-103' }), state).output);
+      const lhr100 = JSON.parse(executeTool(makeToolCall('getTrackerIssue', { issueIdOrKey: 'LHR-100' }), state).output);
+      const lhr101 = JSON.parse(executeTool(makeToolCall('getTrackerIssue', { issueIdOrKey: 'LHR-101' }), state).output);
+      const lhr102 = JSON.parse(executeTool(makeToolCall('getTrackerIssue', { issueIdOrKey: 'LHR-102' }), state).output);
+      const lhr103 = JSON.parse(executeTool(makeToolCall('getTrackerIssue', { issueIdOrKey: 'LHR-103' }), state).output);
 
       expect(lhr100.fields.status.name).toBe('In Progress');
       expect(lhr101.fields.status.name).toBe('In Progress');
