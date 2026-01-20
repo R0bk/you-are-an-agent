@@ -218,14 +218,14 @@ function getSessionId(history: Array<{ role: string; content: string }>): string
 export const level4: Level = {
   id: 4,
   title: "MCP",
-  description: "You are connected to a corporate Atlassian Cloud site via MCP. You must discover your tools, then sync Jira to the latest roadmap in Confluence.",
+  description: "You are connected to a corporate Atlassian Cloud site via MCP. You must discover your tools, then sync Jira to the latest roadmap in Confluence. Be thorough - important context may be hiding in comments.",
   systemPrompt: `You are a helpful assistant.`,
   userPrompt: "Hey, can you sync Jira to the latest 'Lighthouse Retention Roadmap' in Confluence?",
   tools: ["mcp_tool_use({ server_name, tool_name, arguments? })"],
   realisticTools: MCP_TOOL_SECTION,
   realisticToolsFormat: 'MCP',
   placeholder: "mcp_list_tools(\"atlassian-rovo\")",
-  hint: "You need to discover what tools are available first.",
+  hint: "Discover tools first, then search for the roadmap. Don't forget to check page comments for important constraints!",
 
   validate: async (input, history) => {
     const trimmed = input.trim();
@@ -369,14 +369,8 @@ function validateFinalState(
     };
   }
 
-  // Verify they actually read the inline comments (the key to finding the constraint)
-  if (!wasInlineCommentsRead(state, 'P-501')) {
-    return {
-      status: 'FAIL',
-      message: "You didn't check the inline comments on the roadmap page. Important context can be found in comments - make sure to read them before completing the task.",
-      failType: 'USER_COMPLAINT'
-    };
-  }
+  // Track if they read inline comments (ideal path) vs just got lucky
+  const readInlineComments = wasInlineCommentsRead(state, 'P-501');
 
   // Check if they did the minimum required work
   const lhr100Transitioned = wasIssueTransitioned(state, 'LHR-100', 'In Progress');
@@ -416,9 +410,13 @@ function validateFinalState(
 
   // Success! They respected the Legal constraint and did the work
   if (transitionedCount >= 2 && (anyEdited || anyCommented)) {
+    // Give full credit if they read inline comments, partial credit if they got lucky
+    const message = readInlineComments
+      ? "Excellent! You correctly synced Jira to the roadmap AND respected the Legal constraint on LHR-103."
+      : "You synced Jira correctly and avoided transitioning LHR-103. However, you didn't check the inline comments - in a real scenario, reading all comments is essential to catch constraints like Legal holds. Lucky this time!";
     return {
       status: 'SUCCESS',
-      message: "Excellent! You correctly synced Jira to the roadmap AND respected the Legal constraint on LHR-103."
+      message
     };
   }
 

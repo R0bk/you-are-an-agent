@@ -76,6 +76,69 @@ export const ALL_TOOL_NAMES = [
 ];
 
 /**
+ * Maps positional arguments (arg0, arg1, etc.) to named parameters for each tool.
+ * This allows users to call tools like: toolName("value1", "value2")
+ * instead of requiring: toolName({ param1: "value1", param2: "value2" })
+ */
+const POSITIONAL_ARG_MAPS: Record<string, string[]> = {
+  // Confluence tools
+  getConfluencePage: ['pageId'],
+  getConfluencePageInlineComments: ['pageId'],
+  getConfluencePageFooterComments: ['pageId'],
+  getConfluencePageDescendants: ['pageId'],
+  getPagesInConfluenceSpace: ['spaceId'],
+  createConfluencePage: ['spaceId', 'title', 'body'],
+  updateConfluencePage: ['pageId', 'title', 'body', 'version'],
+  createConfluenceInlineComment: ['pageId', 'body', 'anchor'],
+  createConfluenceFooterComment: ['pageId', 'body'],
+  searchConfluenceUsingCql: ['cql'],
+  // Jira tools
+  getJiraIssue: ['issueIdOrKey'],
+  getTransitionsForJiraIssue: ['issueIdOrKey'],
+  editJiraIssue: ['issueIdOrKey', 'fields'],
+  transitionJiraIssue: ['issueIdOrKey', 'transitionId'],
+  addCommentToJiraIssue: ['issueIdOrKey', 'body'],
+  addWorklogToJiraIssue: ['issueIdOrKey', 'timeSpent'],
+  createJiraIssue: ['projectKey', 'summary', 'issuetype'],
+  getJiraIssueRemoteIssueLinks: ['issueIdOrKey'],
+  getJiraProjectIssueTypesMetadata: ['projectKey'],
+  getJiraIssueTypeMetaWithFields: ['projectKey', 'issueType'],
+  searchJiraIssuesUsingJql: ['jql'],
+  lookupJiraAccountId: ['query'],
+  // Rovo/Shared tools
+  search: ['query', 'cloudId', 'limit'],
+  fetch: ['ari'],
+  // Compass tools
+  getCompassComponent: ['componentId'],
+  createCompassComponent: ['name', 'type'],
+  createCompassComponentRelationship: ['sourceId', 'targetId'],
+  createCompassCustomFieldDefinition: ['name', 'type'],
+};
+
+/**
+ * Convert positional arguments (arg0, arg1, ...) to named arguments
+ */
+function mapPositionalArgs(toolName: string, args: Record<string, unknown>): Record<string, unknown> {
+  const argMap = POSITIONAL_ARG_MAPS[toolName];
+  if (!argMap) return args;
+
+  const result = { ...args };
+
+  // Map arg0, arg1, etc. to named params
+  for (let i = 0; i < argMap.length; i++) {
+    const positionalKey = `arg${i}`;
+    const namedKey = argMap[i];
+
+    if (positionalKey in args && !(namedKey in args)) {
+      result[namedKey] = args[positionalKey];
+      delete result[positionalKey];
+    }
+  }
+
+  return result;
+}
+
+/**
  * Execute a tool call against the state
  */
 export function executeTool(
@@ -83,7 +146,7 @@ export function executeTool(
   state: AtlassianState
 ): ToolResult {
   const toolName = call.toolName;
-  const args = call.arguments || {};
+  const rawArgs = call.arguments || {};
 
   if (!toolName) {
     return { success: false, output: '', error: 'No tool name specified' };
@@ -98,6 +161,9 @@ export function executeTool(
       error: `Unknown tool: ${toolName}`
     };
   }
+
+  // Map positional args to named args
+  const args = mapPositionalArgs(toolName, rawArgs);
 
   try {
     const result = executor(args, state);
@@ -418,15 +484,19 @@ const TOOL_EXECUTORS: Record<string, ToolExecutor> = {
       }
     }
 
+    // Return in same format as global search for consistent display
     return {
-      results: results.slice(0, limit).map(p => ({
-        content: {
+      results: results.slice(0, limit).map(p => {
+        const space = state.confluence.spaces.find(s => s.id === p.spaceId);
+        return {
+          type: 'confluence:page',
           id: p.id,
           title: p.title,
-          type: 'page'
-        }
-      })),
-      size: results.length
+          url: `https://acme.atlassian.net/wiki/spaces/${space?.key}/pages/${p.id}`,
+          excerpt: p.body.substring(0, 200) + '...'
+        };
+      }),
+      total: results.length
     };
   },
 
@@ -445,9 +515,14 @@ const TOOL_EXECUTORS: Record<string, ToolExecutor> = {
 
   getJiraProjectIssueTypesMetadata: (args, state) => {
     const projectKey = String(args.projectKey || '');
+    if (!projectKey) {
+      const availableProjects = state.jira.projects.map(p => p.key).join(', ');
+      throw new Error(`Missing projectKey parameter. Available projects: ${availableProjects}. Usage: getJiraProjectIssueTypesMetadata("LHR")`);
+    }
     const project = state.jira.projects.find(p => p.key === projectKey);
     if (!project) {
-      throw new Error(`Project ${projectKey} not found`);
+      const availableProjects = state.jira.projects.map(p => p.key).join(', ');
+      throw new Error(`Project "${projectKey}" not found. Available projects: ${availableProjects}`);
     }
 
     return {
@@ -463,9 +538,14 @@ const TOOL_EXECUTORS: Record<string, ToolExecutor> = {
     const projectKey = String(args.projectKey || '');
     const issueTypeName = String(args.issueType || '');
 
+    if (!projectKey) {
+      const availableProjects = state.jira.projects.map(p => p.key).join(', ');
+      throw new Error(`Missing projectKey parameter. Available projects: ${availableProjects}`);
+    }
     const project = state.jira.projects.find(p => p.key === projectKey);
     if (!project) {
-      throw new Error(`Project ${projectKey} not found`);
+      const availableProjects = state.jira.projects.map(p => p.key).join(', ');
+      throw new Error(`Project "${projectKey}" not found. Available projects: ${availableProjects}`);
     }
 
     const issueType = project.issueTypes.find(t => t.name === issueTypeName);
@@ -537,11 +617,16 @@ const TOOL_EXECUTORS: Record<string, ToolExecutor> = {
 
   getJiraIssue: (args, state) => {
     const issueIdOrKey = String(args.issueIdOrKey || '');
+    if (!issueIdOrKey) {
+      const availableIssues = Array.from(state.jira.issues.keys()).join(', ');
+      throw new Error(`Missing issueIdOrKey parameter. Available issues: ${availableIssues}. Usage: getJiraIssue("LHR-100")`);
+    }
     const issue = state.jira.issues.get(issueIdOrKey) ||
       Array.from(state.jira.issues.values()).find(i => i.id === issueIdOrKey);
 
     if (!issue) {
-      throw new Error(`Issue ${issueIdOrKey} not found`);
+      const availableIssues = Array.from(state.jira.issues.keys()).join(', ');
+      throw new Error(`Issue "${issueIdOrKey}" not found. Available issues: ${availableIssues}`);
     }
 
     return formatJiraIssueResponse(issue);
@@ -549,9 +634,14 @@ const TOOL_EXECUTORS: Record<string, ToolExecutor> = {
 
   getTransitionsForJiraIssue: (args, state) => {
     const issueIdOrKey = String(args.issueIdOrKey || '');
+    if (!issueIdOrKey) {
+      const availableIssues = Array.from(state.jira.issues.keys()).join(', ');
+      throw new Error(`Missing issueIdOrKey parameter. Available issues: ${availableIssues}`);
+    }
     const issue = state.jira.issues.get(issueIdOrKey);
     if (!issue) {
-      throw new Error(`Issue ${issueIdOrKey} not found`);
+      const availableIssues = Array.from(state.jira.issues.keys()).join(', ');
+      throw new Error(`Issue "${issueIdOrKey}" not found. Available issues: ${availableIssues}`);
     }
 
     const transitions = state.jira.transitions.get(issue.key) || [];

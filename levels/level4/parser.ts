@@ -286,9 +286,9 @@ function parseMcpToolUse(argsStr: string): ParserResult {
         call: {
           type: 'mcp_tool',
           metaFunction: 'mcp_tool_use',
-          serverName: parsed.server_name,
-          toolName: parsed.tool_name,
-          arguments: parsed.arguments || {}
+          serverName: String(parsed.server_name),
+          toolName: String(parsed.tool_name),
+          arguments: (parsed.arguments as Record<string, unknown>) || {}
         }
       };
     } catch (e) {
@@ -314,10 +314,21 @@ function parseMcpToolUse(argsStr: string): ParserResult {
   if (parts.length >= 3) {
     const argsPart = parts.slice(2).join(',').trim();
     if (argsPart) {
-      try {
-        args = parseLooseJson(argsPart);
-      } catch (e) {
-        return { success: false, error: `Failed to parse tool arguments: ${(e as Error).message}` };
+      // Check if it's an object or a simple value
+      if (argsPart.startsWith('{')) {
+        try {
+          args = parseLooseJson(argsPart);
+        } catch (e) {
+          return { success: false, error: `Failed to parse tool arguments: ${(e as Error).message}` };
+        }
+      } else {
+        // Handle positional arguments like: mcp_tool_use("server", "tool", "value1", "value2")
+        // Convert them to arg0, arg1, etc for the positional mapper
+        const positionalParts = parts.slice(2);
+        positionalParts.forEach((part, i) => {
+          const value = extractStringArg(part) || tryParseValue(part);
+          args[`arg${i}`] = value;
+        });
       }
     }
   }

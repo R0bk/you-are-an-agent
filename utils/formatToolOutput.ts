@@ -305,7 +305,9 @@ function formatSearchResults(data: SearchResults): FormattedSection[] {
   const lines: string[] = [];
   for (const result of data.results) {
     const typeLabel = result.type.split(':').pop() || result.type;
-    lines.push(`[${typeLabel}] ${result.title}`);
+    // Show ID prominently so players know how to reference resources
+    const idInfo = result.id ? ` (ID: ${result.id})` : '';
+    lines.push(`[${typeLabel}] ${result.title}${idInfo}`);
     if (result.excerpt) {
       lines.push(`    ${result.excerpt.substring(0, 100)}...`);
     }
