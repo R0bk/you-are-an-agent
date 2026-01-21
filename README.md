@@ -4,7 +4,9 @@ A game where you play as an AI agent. Navigate tool calls, desktop interfaces, a
 
 **[Play Now](https://youareanagent.app)** | **[Read the Design Philosophy](https://robkopel.com/field-notes/ax-agent-experience.html)**
 
-<demo vid>
+
+https://github.com/user-attachments/assets/8ed9e967-db77-4f3a-9541-43a67d4e4c67
+
 
 
 You play as an AI agent completing tasks across 7 levels:
